@@ -10,13 +10,15 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAuth } from "@/contexts/auth-context"
 
-export default function LoginPage() {
+export default function AdminLoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
+  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,16 +26,20 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      // For demo purposes, just check if credentials match the dummy ones
-      if (email === "admin@example.com" && password === "admin123") {
-        // Set a simple token in localStorage to simulate authentication
-        localStorage.setItem("admin-auth", "true")
+      const success = await login(email, password)
+
+      if (success) {
         router.push("/admin")
       } else {
         setError("Invalid email or password")
       }
-    } catch (err) {
-      setError("An error occurred during login. Please try again.")
+    } catch (err: any) {
+      console.error("Login error:", err)
+      if (err.code === "auth/invalid-credential") {
+        setError("Invalid email or password")
+      } else {
+        setError(`An error occurred during login: ${err.message}`)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -66,7 +72,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="admin@legendary-signatures.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -104,8 +110,8 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center text-sm">
-            <p className="text-offwhite/50 font-body">Demo credentials:</p>
-            <p className="text-offwhite/70 font-body">Email: admin@example.com</p>
+            <p className="text-offwhite/50 font-body">Admin account:</p>
+            <p className="text-offwhite/70 font-body">Email: admin@legendary-signatures.com</p>
             <p className="text-offwhite/70 font-body">Password: admin123</p>
           </div>
         </CardContent>

@@ -10,42 +10,12 @@ import { ChevronLeft, ChevronRight, ShoppingCart, AlertCircle } from "lucide-rea
 import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, query, limit, getDocs } from "firebase/firestore"
+import { useProducts } from "@/hooks/use-products"
 import { formatPrice } from "@/lib/utils"
 
-// Fallback data in case Firebase fails
-const fallbackProducts = [
-  {
-    id: "1",
-    title: "Lionel Messi Signed Argentina Jersey",
-    signedBy: "Lionel Messi",
-    price: 1299.99,
-    imageUrl: "/images/messi-signed-jersey.png",
-    available: true,
-  },
-  {
-    id: "2",
-    title: "Cristiano Ronaldo Signed Portugal Jersey",
-    signedBy: "Cristiano Ronaldo",
-    price: 1199.99,
-    imageUrl: "/images/ronaldo-signed-jersey.png",
-    available: true,
-  },
-  {
-    id: "3",
-    title: "Kylian Mbappé Signed France Jersey",
-    signedBy: "Kylian Mbappé",
-    price: 999.99,
-    imageUrl: "/images/mbappe-signed-jersey.png",
-    available: false,
-  },
-]
-
 export function TopSellingBanner() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { products, loading, error } = useProducts()
+  const [topProducts, setTopProducts] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [flippedCards, setFlippedCards] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -53,59 +23,15 @@ export function TopSellingBanner() {
   const { toast } = useToast()
 
   useEffect(() => {
-    async function fetchTopSellingProducts() {
-      try {
-        // Skip if we're not in the browser
-        if (typeof window === "undefined") return
+    if (loading) return
 
-        let db
-        try {
-          db = getFirestoreInstance()
-        } catch (err) {
-          console.error("Failed to get Firestore instance:", err)
-          setProducts(fallbackProducts)
-          setLoading(false)
-          return
-        }
+    if (products && products.length > 0) {
+      // Sort by soldCount if available, otherwise just take the first 3
+      const sorted = [...products].sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0)).slice(0, 3)
 
-        if (!db) {
-          setProducts(fallbackProducts)
-          setLoading(false)
-          return
-        }
-
-        // Use a simple query to avoid index requirements
-        try {
-          console.log("Fetching products with simple query...")
-          const simpleQuery = query(collection(db, "products"), limit(3))
-          const simpleSnapshot = await getDocs(simpleQuery)
-          const simpleData = simpleSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-
-          if (simpleData && simpleData.length > 0) {
-            console.log("Successfully fetched products")
-            setProducts(simpleData)
-          } else {
-            console.log("No products found, using fallback data")
-            setProducts(fallbackProducts)
-          }
-        } catch (queryError) {
-          console.error("Error with query:", queryError)
-          setProducts(fallbackProducts)
-        }
-      } catch (err) {
-        console.error("Error fetching products:", err)
-        setError(err)
-        setProducts(fallbackProducts)
-      } finally {
-        setLoading(false)
-      }
+      setTopProducts(sorted)
     }
-
-    fetchTopSellingProducts()
-  }, [])
+  }, [products, loading])
 
   const scrollLeft = () => {
     if (scrollRef.current) {
@@ -115,7 +41,7 @@ export function TopSellingBanner() {
   }
 
   const scrollRight = () => {
-    if (scrollRef.current && currentIndex < products.length - 1) {
+    if (scrollRef.current && currentIndex < topProducts.length - 1) {
       scrollRef.current.scrollBy({ left: 300, behavior: "smooth" })
       setCurrentIndex(currentIndex + 1)
     }
@@ -129,7 +55,6 @@ export function TopSellingBanner() {
       image: product.imageUrl,
       price: product.price,
       quantity: 1,
-      size: "L", // Assuming size is always L for simplicity
     })
 
     toast({
@@ -164,7 +89,7 @@ export function TopSellingBanner() {
     )
   }
 
-  if (error) {
+  if (error || topProducts.length === 0) {
     return (
       <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 text-center">
         <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
@@ -188,7 +113,7 @@ export function TopSellingBanner() {
         ref={scrollRef}
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        {products.map((product) => (
+        {topProducts.map((product) => (
           <Card
             key={product.id}
             className="min-w-[280px] max-w-[280px] border border-gold/20 snap-start flex flex-col group overflow-hidden bg-charcoal"
@@ -210,8 +135,8 @@ export function TopSellingBanner() {
                   {/* Front of card (jersey front) */}
                   <div className="absolute w-full h-full backface-hidden">
                     <Image
-                      src={product.imageUrl || "/images/messi-signed-jersey.png"}
-                      alt={`${product.title} Signed Jersey`}
+                      src={product.imageUrl || "/placeholder.svg?height=300&width=300"}
+                      alt={`${product.title}`}
                       fill
                       className="object-contain"
                     />
@@ -220,8 +145,8 @@ export function TopSellingBanner() {
                   {/* Back of card (jersey back) */}
                   <div className="absolute w-full h-full backface-hidden rotate-y-180">
                     <Image
-                      src={product.imageUrl || "/images/messi-signed-jersey.png"}
-                      alt={`${product.title} Signed Jersey Back`}
+                      src={product.imageUrl || "/placeholder.svg?height=300&width=300"}
+                      alt={`${product.title} Back`}
                       fill
                       className="object-contain"
                     />
@@ -256,6 +181,7 @@ export function TopSellingBanner() {
                 size="icon"
                 className="bg-gold-soft hover:bg-gold-deep text-jetblack"
                 onClick={() => handleAddToCart(product)}
+                disabled={!product.available}
               >
                 <ShoppingCart className="h-5 w-5" />
                 <span className="sr-only">Add to Cart</span>
@@ -281,7 +207,7 @@ export function TopSellingBanner() {
         size="icon"
         className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 rounded-full bg-jetblack border border-gold shadow-md z-10 text-gold"
         onClick={scrollRight}
-        disabled={currentIndex >= products.length - 1}
+        disabled={currentIndex >= topProducts.length - 1}
       >
         <ChevronRight className="h-5 w-5" />
         <span className="sr-only">Scroll Right</span>

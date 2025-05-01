@@ -3,63 +3,87 @@
 import { useState, useEffect } from "react"
 
 interface AuctionCountdownProps {
-  endTime: Date | string
+  endTime: string | any
 }
 
 export function AuctionCountdown({ endTime }: AuctionCountdownProps) {
-  const [timeLeft, setTimeLeft] = useState<{
-    days: number
-    hours: number
-    minutes: number
-    seconds: number
-  }>({
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number }>({
     days: 0,
     hours: 0,
     minutes: 0,
     seconds: 0,
   })
-
   const [isEnded, setIsEnded] = useState(false)
-  const [isEndingSoon, setIsEndingSoon] = useState(false)
 
   useEffect(() => {
     const calculateTimeLeft = () => {
-      const endTimeDate = new Date(endTime)
-      const difference = endTimeDate.getTime() - new Date().getTime()
+      let endDate: Date
+
+      // Handle Firestore timestamp
+      if (endTime?.toDate) {
+        endDate = endTime.toDate()
+      } else if (typeof endTime === "string") {
+        endDate = new Date(endTime)
+      } else {
+        endDate = new Date(endTime)
+      }
+
+      const difference = endDate.getTime() - new Date().getTime()
 
       if (difference <= 0) {
         setIsEnded(true)
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 })
-        return
+        return { days: 0, hours: 0, minutes: 0, seconds: 0 }
       }
 
-      // Check if ending within 24 hours
-      setIsEndingSoon(difference < 24 * 60 * 60 * 1000)
-
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((difference % (1000 * 60)) / 1000)
-
-      setTimeLeft({ days, hours, minutes, seconds })
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+      }
     }
 
-    calculateTimeLeft()
-    const timer = setInterval(calculateTimeLeft, 1000)
+    // Initial calculation
+    setTimeLeft(calculateTimeLeft())
 
+    // Update every second
+    const timer = setInterval(() => {
+      const newTimeLeft = calculateTimeLeft()
+      setTimeLeft(newTimeLeft)
+
+      // Check if ended
+      if (newTimeLeft.days === 0 && newTimeLeft.hours === 0 && newTimeLeft.minutes === 0 && newTimeLeft.seconds === 0) {
+        clearInterval(timer)
+        setIsEnded(true)
+      }
+    }, 1000)
+
+    // Cleanup
     return () => clearInterval(timer)
   }, [endTime])
 
   if (isEnded) {
-    return <p className="font-mono text-gray-500">Auction Ended</p>
+    return <div className="text-red-500 font-semibold">Auction Ended</div>
   }
 
-  const formatTime = (value: number) => value.toString().padStart(2, "0")
-
   return (
-    <div className={`font-mono font-bold ${isEndingSoon ? "text-red-500" : "text-amber-600"}`}>
-      {timeLeft.days > 0 && `${timeLeft.days}d `}
-      {formatTime(timeLeft.hours)}:{formatTime(timeLeft.minutes)}:{formatTime(timeLeft.seconds)}
+    <div className="grid grid-cols-4 gap-2 text-center">
+      <div>
+        <div className="text-xl font-bold text-gold">{timeLeft.days}</div>
+        <div className="text-xs text-offwhite/70">Days</div>
+      </div>
+      <div>
+        <div className="text-xl font-bold text-gold">{timeLeft.hours}</div>
+        <div className="text-xs text-offwhite/70">Hours</div>
+      </div>
+      <div>
+        <div className="text-xl font-bold text-gold">{timeLeft.minutes}</div>
+        <div className="text-xs text-offwhite/70">Mins</div>
+      </div>
+      <div>
+        <div className="text-xl font-bold text-gold">{timeLeft.seconds}</div>
+        <div className="text-xs text-offwhite/70">Secs</div>
+      </div>
     </div>
   )
 }

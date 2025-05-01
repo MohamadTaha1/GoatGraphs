@@ -5,17 +5,7 @@ import { getFirestore, type Firestore } from "firebase/firestore"
 import { getStorage, type FirebaseStorage } from "firebase/storage"
 import { getAuth, type Auth } from "firebase/auth"
 import { getAnalytics, isSupported } from "firebase/analytics"
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyD1WQJcLKk6lVlaw4uAGgMqyTqT0NnGR6w",
-  authDomain: "goatgraphs-shirts.firebaseapp.com",
-  projectId: "goatgraphs-shirts",
-  storageBucket: "goatgraphs-shirts.appspot.com",
-  messagingSenderId: "609496295054",
-  appId: "1:609496295054:web:e5ba4913ded837a5f1cbdf",
-  measurementId: "G-VKW6K9WWL8",
-}
+import { firebaseConfig } from "./firebase/config"
 
 // Initialize Firebase
 let app: any = null
@@ -44,6 +34,9 @@ if (typeof window !== "undefined") {
 
     // Initialize Analytics conditionally
     isSupported().then((yes) => yes && (analytics = getAnalytics(app)))
+
+    console.log("Firebase services initialized successfully")
+    console.log(`Using storage bucket: ${firebaseConfig.storageBucket}`)
   } catch (error) {
     console.error("Error initializing Firebase:", error)
   }

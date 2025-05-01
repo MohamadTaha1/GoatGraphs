@@ -1,62 +1,47 @@
-"use client"
-
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, type FirebaseStorage } from "firebase/storage"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirebaseApp } from "./app"
 
-let storageInstance: FirebaseStorage | null = null
+let storageInstance = null
 
-// Initialize and export Firebase Storage
-export function getStorageInstance(): FirebaseStorage {
-  if (typeof window === "undefined") {
-    throw new Error("Firebase Storage can only be accessed in the browser")
-  }
-
-  if (storageInstance) {
-    return storageInstance
-  }
+export function getStorageInstance() {
+  if (storageInstance) return storageInstance
 
   try {
     const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app not initialized")
+      return null
+    }
+
     storageInstance = getStorage(app)
-    console.log("Firebase Storage initialized successfully")
+    console.log("Using storage bucket:", storageInstance.bucket || "default")
     return storageInstance
   } catch (error) {
     console.error("Error initializing Firebase Storage:", error)
-    throw new Error(`Failed to initialize Firebase Storage: ${error.message}`)
+    return null
   }
 }
 
-// Upload file to Firebase Storage with timeout and retry
-export async function uploadFile(file: File, path: string, timeoutMs = 30000): Promise<string> {
-  console.log(`Starting upload of file ${file.name} to path ${path}`)
-
+export async function uploadFile(file: File, path: string, timeout = 30000): Promise<string> {
   try {
     const storage = getStorageInstance()
-    const storageRef = ref(storage, path)
-
-    // Set up a timeout for the upload with retry
-    const uploadWithRetry = async (retries = 2): Promise<string> => {
-      try {
-        console.log(`Attempting upload (retries left: ${retries})...`)
-        const snapshot = await uploadBytes(storageRef, file)
-        console.log("File uploaded successfully, getting download URL...")
-        return await getDownloadURL(snapshot.ref)
-      } catch (error) {
-        if (retries > 0) {
-          console.log(`Retrying upload... (${retries} retries left)`)
-          return uploadWithRetry(retries - 1)
-        }
-        throw error
-      }
+    if (!storage) {
+      throw new Error("Storage not initialized")
     }
 
-    const uploadPromise = uploadWithRetry()
-
+    // Create a promise that rejects after the timeout
     const timeoutPromise = new Promise<string>((_, reject) => {
-      setTimeout(() => reject(new Error(`Upload timed out after ${timeoutMs}ms`)), timeoutMs)
+      setTimeout(() => reject(new Error(`Upload timed out after ${timeout}ms`)), timeout)
     })
 
-    // Race the upload against the timeout
+    // Create the upload promise
+    const uploadPromise = (async () => {
+      const storageRef = ref(storage, path)
+      const snapshot = await uploadBytes(storageRef, file)
+      return await getDownloadURL(snapshot.ref)
+    })()
+
+    // Race the promises
     return await Promise.race([uploadPromise, timeoutPromise])
   } catch (error) {
     console.error("Error uploading file:", error)
@@ -64,16 +49,39 @@ export async function uploadFile(file: File, path: string, timeoutMs = 30000): P
   }
 }
 
-// Delete a file from Firebase Storage
-export async function deleteFile(path: string): Promise<boolean> {
+export async function uploadBase64Image(base64String: string, path: string): Promise<string> {
+  try {
+    // Convert base64 to blob
+    const response = await fetch(base64String)
+    const blob = await response.blob()
+
+    const storage = getStorageInstance()
+    if (!storage) {
+      throw new Error("Storage not initialized")
+    }
+
+    const storageRef = ref(storage, path)
+    const snapshot = await uploadBytes(storageRef, blob)
+    const downloadURL = await getDownloadURL(snapshot.ref)
+
+    return downloadURL
+  } catch (error) {
+    console.error("Error uploading base64 image:", error)
+    throw error
+  }
+}
+
+export async function getFileURL(path: string): Promise<string> {
   try {
     const storage = getStorageInstance()
-    const fileRef = ref(storage, path)
-    await deleteObject(fileRef)
-    console.log(`File at path ${path} deleted successfully`)
-    return true
+    if (!storage) {
+      throw new Error("Storage not initialized")
+    }
+
+    const storageRef = ref(storage, path)
+    return await getDownloadURL(storageRef)
   } catch (error) {
-    console.error(`Error deleting file at path ${path}:`, error)
-    return false
+    console.error("Error getting file URL:", error)
+    throw error
   }
 }

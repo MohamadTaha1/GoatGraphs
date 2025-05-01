@@ -5,113 +5,40 @@ import Link from "next/link"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-// Update the import to use the correct path
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, query, getDocs, limit, where, orderBy } from "firebase/firestore"
 import { formatPrice } from "@/lib/utils"
 import { FeaturedJerseys } from "@/components/featured-jerseys"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useProducts } from "@/hooks/use-products"
 
 export function DynamicFeaturedJerseys() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { products, loading, error } = useProducts()
+  const [featuredProducts, setFeaturedProducts] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
-    async function fetchFeaturedProducts() {
-      try {
-        // Skip if we're not in the browser
-        if (typeof window === "undefined") return
+    if (loading) return
 
-        let db
-        try {
-          db = getFirestoreInstance()
-        } catch (err) {
-          console.error("Failed to get Firestore instance:", err)
-          setLoading(false)
-          setError(err)
-          return
-        }
-
-        if (!db) {
-          setLoading(false)
-          setError(new Error("Firestore instance is null"))
-          return
-        }
-
-        try {
-          // First try with the compound query that requires an index
-          const q = query(
-            collection(db, "products"),
-            where("featured", "==", true),
-            orderBy("createdAt", "desc"),
-            limit(4),
-          )
-
-          console.log("Attempting to fetch featured products with index...")
-          const querySnapshot = await getDocs(q)
-          const productsData = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-
-          if (productsData && productsData.length > 0) {
-            console.log("Successfully fetched featured products with index")
-            setProducts(productsData)
-          } else {
-            // If no results, try a simpler query
-            console.log("No featured products found, trying simple query...")
-            const simpleQuery = query(collection(db, "products"), limit(4))
-            const simpleSnapshot = await getDocs(simpleQuery)
-            const simpleData = simpleSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }))
-
-            if (simpleData && simpleData.length > 0) {
-              console.log("Successfully fetched products with simple query")
-              setProducts(simpleData)
-            } else {
-              console.log("No products found at all")
-              setError(new Error("No products found"))
-            }
-          }
-        } catch (indexError) {
-          console.error("Index error, falling back to simple query:", indexError)
-
-          // If the index error occurs, try a simpler query
-          try {
-            const simpleQuery = query(collection(db, "products"), limit(4))
-            const simpleSnapshot = await getDocs(simpleQuery)
-            const simpleData = simpleSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }))
-
-            if (simpleData && simpleData.length > 0) {
-              console.log("Successfully fetched products with simple query after index error")
-              setProducts(simpleData)
-            } else {
-              console.log("No products found with simple query after index error")
-              setError(new Error("No products found"))
-            }
-          } catch (fallbackError) {
-            console.error("Error with fallback query:", fallbackError)
-            setError(fallbackError)
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching featured products:", err)
-        setError(err)
-      } finally {
-        setLoading(false)
-      }
+    if (error) {
+      setLoadError(error)
+      setIsLoading(false)
+      return
     }
 
-    fetchFeaturedProducts()
-  }, [])
+    // Filter featured products or just take the first 4
+    const featured = products.filter((p) => p.featured).slice(0, 4)
 
-  if (loading) {
+    if (featured.length > 0) {
+      setFeaturedProducts(featured)
+    } else {
+      // If no featured products, just take the first 4
+      setFeaturedProducts(products.slice(0, 4))
+    }
+
+    setIsLoading(false)
+  }, [products, loading, error])
+
+  if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[1, 2, 3, 4].map((i) => (
@@ -132,14 +59,14 @@ export function DynamicFeaturedJerseys() {
   }
 
   // Use the existing FeaturedJerseys component as fallback
-  if (error || products.length === 0) {
+  if (loadError || featuredProducts.length === 0) {
     console.log("Falling back to FeaturedJerseys component")
     return <FeaturedJerseys />
   }
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {products.map((product) => (
+      {featuredProducts.map((product) => (
         <Link key={product.id} href={`/product/${product.id}`}>
           <Card className="overflow-hidden h-full border border-gold/20 bg-charcoal hover:border-gold/40 transition-all group">
             <div className="relative h-[200px] w-full">

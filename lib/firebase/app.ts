@@ -1,40 +1,34 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyD1WQJcLKk6lVlaw4uAGgMqyTqT0NnGR6w",
-  authDomain: "goatgraphs-shirts.firebaseapp.com",
-  projectId: "goatgraphs-shirts",
-  storageBucket: "goatgraphs-shirts.appspot.com",
-  messagingSenderId: "609496295054",
-  appId: "1:609496295054:web:e5ba4913ded837a5f1cbdf",
-  measurementId: "G-VKW6K9WWL8",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: "goatgraphs-shirts.appspot.com", // Updated storage bucket
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-// Initialize Firebase
 let firebaseApp = null
 
 export function getFirebaseApp() {
-  if (typeof window === "undefined") {
-    throw new Error("Firebase app can only be initialized in the browser")
-  }
+  if (firebaseApp) return firebaseApp
 
-  if (firebaseApp) {
-    return firebaseApp
+  if (typeof window === "undefined") {
+    console.warn("Firebase app cannot be initialized on the server side")
+    return null
   }
 
   try {
-    if (getApps().length > 0) {
-      firebaseApp = getApp()
-      console.log("Retrieved existing Firebase app")
-    } else {
+    if (getApps().length === 0) {
       firebaseApp = initializeApp(firebaseConfig)
       console.log("Firebase app initialized successfully")
+    } else {
+      firebaseApp = getApp()
     }
-
     return firebaseApp
   } catch (error) {
     console.error("Error initializing Firebase app:", error)
-    throw error
+    return null
   }
 }

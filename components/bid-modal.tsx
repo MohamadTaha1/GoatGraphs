@@ -3,112 +3,133 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatPrice } from "@/lib/utils"
-import type { AuctionItem } from "./auction-item-card"
-import { useToast } from "@/components/ui/use-toast"
+import { AlertCircle, Loader2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAuctions, type Auction } from "@/hooks/use-auctions"
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 
 interface BidModalProps {
-  item: AuctionItem
+  auction: Auction
+  isOpen: boolean
   onClose: () => void
-  onSubmit: (amount: number) => void
+  onBidSuccess: () => void
 }
 
-export function BidModal({ item, onClose, onSubmit }: BidModalProps) {
-  const minBid = Math.ceil(item.currentBid * 1.05) // Minimum bid is 5% higher than current bid
-  const [bidAmount, setBidAmount] = useState(minBid)
-  const [error, setError] = useState("")
-  const { toast } = useToast()
+export function BidModal({ auction, isOpen, onClose, onBidSuccess }: BidModalProps) {
+  const [bidAmount, setBidAmount] = useState<number>(auction.currentBid + 10)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { placeBid } = useAuctions()
+  const { user } = useAuth()
+  const router = useRouter()
 
   const handleBidChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = Number.parseFloat(e.target.value)
-    setBidAmount(value)
-
-    if (value < minBid) {
-      setError(`Bid must be at least $${formatPrice(minBid)}`)
-    } else {
-      setError("")
-    }
+    setBidAmount(isNaN(value) ? 0 : value)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
 
-    if (bidAmount < minBid) {
-      setError(`Bid must be at least $${formatPrice(minBid)}`)
+    // Check if user is logged in
+    if (!user) {
+      router.push("/login")
       return
     }
 
-    onSubmit(bidAmount)
-    toast({
-      title: "Bid Placed!",
-      description: `Your bid of $${formatPrice(bidAmount)} for ${item.playerName}'s jersey has been placed.`,
-    })
+    // Validate bid amount
+    if (bidAmount <= auction.currentBid) {
+      setError(`Your bid must be higher than the current bid of $${auction.currentBid.toFixed(2)}`)
+      return
+    }
+
+    setLoading(true)
+    try {
+      await placeBid(auction.id, bidAmount)
+      onBidSuccess()
+    } catch (err: any) {
+      setError(err.message || "Failed to place bid. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="bg-charcoal border-gold/30 text-offwhite sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Place a Bid</DialogTitle>
+          <DialogTitle className="text-xl text-offwhite">Place a Bid</DialogTitle>
+          <DialogDescription className="text-offwhite/70">
+            You are bidding on {auction.playerName} ({auction.team}) jersey
+          </DialogDescription>
         </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive" className="bg-red-900/20 border-red-900/50">
+            <AlertCircle className="h-4 w-4 text-red-500" />
+            <AlertDescription className="text-red-500">{error}</AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="item" className="text-right">
-                Item
-              </Label>
-              <div className="col-span-3">
-                <p className="font-medium">{item.playerName} Jersey</p>
-                <p className="text-sm text-gray-500">{item.team}</p>
-              </div>
+          <div className="space-y-4 py-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-offwhite/70">Current Bid:</span>
+              <span className="text-gold font-semibold">${auction.currentBid.toFixed(2)}</span>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="current-bid" className="text-right">
-                Current Bid
+
+            <div className="space-y-2">
+              <Label htmlFor="bidAmount" className="text-offwhite">
+                Your Bid Amount ($)
               </Label>
-              <div className="col-span-3">
-                <p className="font-medium">${formatPrice(item.currentBid)}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="min-bid" className="text-right">
-                Minimum Bid
-              </Label>
-              <div className="col-span-3">
-                <p className="font-medium">${formatPrice(minBid)}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="bid" className="text-right">
-                Your Bid
-              </Label>
-              <div className="col-span-3">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2">$</span>
-                  <Input
-                    id="bid"
-                    type="number"
-                    value={bidAmount}
-                    onChange={handleBidChange}
-                    className="pl-7"
-                    step="0.01"
-                    min={minBid}
-                  />
-                </div>
-                {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
-              </div>
+              <Input
+                id="bidAmount"
+                type="number"
+                min={auction.currentBid + 0.01}
+                step="0.01"
+                value={bidAmount}
+                onChange={handleBidChange}
+                className="border-gold/30 bg-jetblack text-offwhite"
+                required
+              />
+              <p className="text-xs text-offwhite/70">Minimum bid: ${(auction.currentBid + 0.01).toFixed(2)}</p>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+
+          <DialogFooter className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="border-gold/30 text-offwhite hover:bg-jetblack"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={bidAmount < minBid}>
-              Place Bid
+            <Button
+              type="submit"
+              disabled={loading || bidAmount <= auction.currentBid}
+              className="bg-gold-soft hover:bg-gold-deep text-jetblack"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                </>
+              ) : (
+                `Place Bid: $${bidAmount.toFixed(2)}`
+              )}
             </Button>
           </DialogFooter>
         </form>

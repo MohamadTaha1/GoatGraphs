@@ -10,9 +10,10 @@ import { Loader2 } from "lucide-react"
 interface ProtectedRouteProps {
   children: React.ReactNode
   requiredRole?: "admin" | "customer"
+  adminOnly?: boolean
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requiredRole, adminOnly }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
@@ -21,6 +22,12 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       // If not logged in, redirect to login
       if (!user) {
         router.push("/login")
+        return
+      }
+
+      // If adminOnly is true and user is not admin, redirect
+      if (adminOnly && user.role !== "admin" && user.role !== "superadmin") {
+        router.push("/customer")
         return
       }
 
@@ -33,7 +40,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         }
       }
     }
-  }, [user, isLoading, router, requiredRole])
+  }, [user, isLoading, router, requiredRole, adminOnly])
 
   if (isLoading) {
     return (
@@ -44,6 +51,11 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         </div>
       </div>
     )
+  }
+
+  // If adminOnly is true, check if user is admin
+  if (adminOnly && user?.role !== "admin" && user?.role !== "superadmin") {
+    return null
   }
 
   // If no role is required or user has the required role, render children

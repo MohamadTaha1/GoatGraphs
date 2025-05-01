@@ -17,7 +17,7 @@ import { addProduct } from "@/hooks/use-products"
 import Link from "next/link"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { collection, addDoc } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase"
+import { getFirestoreInstance } from "@/lib/firebase/firestore" // Fixed import path
 
 export default function AddProductPage() {
   const router = useRouter()

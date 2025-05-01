@@ -1,190 +1,177 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { collection, query, getDocs, doc, getDoc, orderBy, updateDoc, serverTimestamp } from "firebase/firestore"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore"
-import type { AuctionItem } from "@/components/auction-item-card"
+import { useAuth } from "@/contexts/auth-context"
 
-// Fallback data for when Firebase is unavailable
-const fallbackAuctions: AuctionItem[] = [
-  {
-    id: "1",
-    playerName: "Lionel Messi",
-    team: "Argentina",
-    image: "/images/messi-signed-jersey.png",
-    currentBid: 870,
-    startingBid: 500,
-    endTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
-    status: "new",
-  },
-  {
-    id: "2",
-    playerName: "Cristiano Ronaldo",
-    team: "Portugal",
-    image: "/images/ronaldo-signed-jersey.png",
-    currentBid: 950,
-    startingBid: 600,
-    endTime: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), // 12 hours from now
-    status: "ending_soon",
-  },
-  {
-    id: "3",
-    playerName: "Kylian Mbappé",
-    team: "France",
-    image: "/images/mbappe-signed-jersey.png",
-    currentBid: 750,
-    startingBid: 400,
-    endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
-  },
-  {
-    id: "4",
-    playerName: "Neymar Jr",
-    team: "Brazil",
-    image: "/images/neymar-signed-jersey.png",
-    currentBid: 680,
-    startingBid: 350,
-    endTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
-  },
-  {
-    id: "5",
-    playerName: "Erling Haaland",
-    team: "Manchester City",
-    image: "/images/haaland-signed-jersey.png",
-    currentBid: 820,
-    startingBid: 450,
-    endTime: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days from now
-    status: "new",
-  },
-  {
-    id: "6",
-    playerName: "Mohamed Salah",
-    team: "Liverpool",
-    image: "/images/salah-signed-jersey.png",
-    currentBid: 710,
-    startingBid: 400,
-    endTime: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours from now
-    status: "ending_soon",
-  },
-  {
-    id: "7",
-    playerName: "Robert Lewandowski",
-    team: "Barcelona",
-    image: "/images/lewandowski-signed-jersey.png",
-    currentBid: 650,
-    startingBid: 300,
-    endTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-    status: "ended",
-  },
-  {
-    id: "8",
-    playerName: "Harry Kane",
-    team: "England",
-    image: "/images/kane-signed-jersey.png",
-    currentBid: 590,
-    startingBid: 350,
-    endTime: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-    status: "ended",
-  },
-]
+export interface Auction {
+  id: string
+  playerName: string
+  team: string
+  description?: string
+  image: string
+  currentBid: number
+  startingBid: number
+  endTime: any
+  status?: string
+  createdAt?: any
+  updatedAt?: any
+  bidHistory?: Array<{
+    userId: string
+    userName: string
+    amount: number
+    timestamp: any
+  }>
+}
 
 export function useAuctions() {
-  const [auctions, setAuctions] = useState<AuctionItem[]>([])
+  const [auctions, setAuctions] = useState<Auction[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const { user } = useAuth()
 
-  useEffect(() => {
-    async function fetchAuctions() {
-      try {
-        // Skip if we're not in the browser
-        if (typeof window === "undefined") return
+  const fetchAuctions = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const db = getFirestoreInstance()
+      const auctionsRef = collection(db, "auctions")
+      const q = query(auctionsRef, orderBy("endTime", "desc"))
+      const querySnapshot = await getDocs(q)
 
-        let db
-        try {
-          db = getFirestoreInstance()
-        } catch (err) {
-          console.error("Failed to get Firestore instance:", err)
-          setAuctions(fallbackAuctions)
-          setLoading(false)
-          return
-        }
+      const auctionsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Auction[]
 
-        if (!db) {
-          setAuctions(fallbackAuctions)
-          setLoading(false)
-          return
-        }
-
-        try {
-          const auctionsCollection = collection(db, "auctions")
-          const auctionsSnapshot = await getDocs(auctionsCollection)
-
-          if (!auctionsSnapshot.empty) {
-            const auctionsData = auctionsSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as AuctionItem[]
-
-            setAuctions(auctionsData)
-          } else {
-            console.log("No auctions found, using fallback data")
-            setAuctions(fallbackAuctions)
-          }
-        } catch (queryError) {
-          console.error("Error fetching auctions:", queryError)
-          setAuctions(fallbackAuctions)
-        }
-      } catch (err) {
-        console.error("Error in useAuctions:", err)
-        setError(err instanceof Error ? err : new Error(String(err)))
-        setAuctions(fallbackAuctions)
-      } finally {
-        setLoading(false)
-      }
+      setAuctions(auctionsData)
+    } catch (err) {
+      console.error("Error fetching auctions:", err)
+      setError("Failed to load auctions. Please try again.")
+    } finally {
+      setLoading(false)
     }
+  }
 
-    fetchAuctions()
-  }, [])
+  const fetchActiveAuctions = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const db = getFirestoreInstance()
+      const auctionsRef = collection(db, "auctions")
+      const now = new Date()
+
+      // We can't directly query on endTime > now with Firestore
+      // So we'll fetch all and filter client-side
+      const q = query(auctionsRef, orderBy("endTime", "asc"))
+      const querySnapshot = await getDocs(q)
+
+      const auctionsData = querySnapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .filter((auction) => {
+          // Filter for auctions that haven't ended yet
+          const endTime = auction.endTime?.toDate ? auction.endTime.toDate() : new Date(auction.endTime)
+          return endTime > now
+        }) as Auction[]
+
+      setAuctions(auctionsData)
+    } catch (err) {
+      console.error("Error fetching active auctions:", err)
+      setError("Failed to load active auctions. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchAuction = async (id: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const db = getFirestoreInstance()
+      const docRef = doc(db, "auctions", id)
+      const docSnap = await getDoc(docRef)
+
+      if (docSnap.exists()) {
+        return {
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Auction
+      } else {
+        throw new Error("Auction not found")
+      }
+    } catch (err) {
+      console.error("Error fetching auction:", err)
+      setError("Failed to load auction details. Please try again.")
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const placeBid = async (auctionId: string, bidAmount: number) => {
+    if (!user) {
+      throw new Error("You must be logged in to place a bid")
+    }
+
     try {
       const db = getFirestoreInstance()
       const auctionRef = doc(db, "auctions", auctionId)
+      const auctionSnap = await getDoc(auctionRef)
+
+      if (!auctionSnap.exists()) {
+        throw new Error("Auction not found")
+      }
+
+      const auctionData = auctionSnap.data() as Auction
+
+      // Check if auction has ended
+      const endTime = auctionData.endTime?.toDate ? auctionData.endTime.toDate() : new Date(auctionData.endTime)
+      if (endTime < new Date()) {
+        throw new Error("This auction has ended")
+      }
+
+      // Check if bid is higher than current bid
+      if (bidAmount <= auctionData.currentBid) {
+        throw new Error(`Your bid must be higher than the current bid of $${auctionData.currentBid.toFixed(2)}`)
+      }
+
+      // Add bid to history and update current bid
+      const bidHistory = auctionData.bidHistory || []
+      const newBid = {
+        userId: user.uid,
+        userName: user.displayName,
+        amount: bidAmount,
+        timestamp: serverTimestamp(),
+      }
 
       await updateDoc(auctionRef, {
         currentBid: bidAmount,
-        bidHistory: [
-          {
-            userId: "current-user-id", // Replace with actual user ID
-            userName: "Current User", // Replace with actual user name
-            amount: bidAmount,
-            timestamp: new Date(),
-          },
-        ],
+        bidHistory: [...bidHistory, newBid],
+        updatedAt: serverTimestamp(),
       })
 
-      // Update local state
-      setAuctions((prevAuctions) =>
-        prevAuctions.map((auction) =>
-          auction.id === auctionId
-            ? {
-                ...auction,
-                currentBid: bidAmount,
-              }
-            : auction,
-        ),
-      )
-
-      return { success: true }
-    } catch (error) {
-      console.error("Error placing bid:", error)
-      return { success: false, error }
+      return true
+    } catch (err) {
+      console.error("Error placing bid:", err)
+      throw err
     }
   }
+
+  useEffect(() => {
+    fetchAuctions()
+  }, [])
 
   return {
     auctions,
     loading,
     error,
+    fetchAuctions,
+    fetchActiveAuctions,
+    fetchAuction,
     placeBid,
   }
 }

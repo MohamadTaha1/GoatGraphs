@@ -1,36 +1,19 @@
-"use client"
-
 import type React from "react"
-import { SidebarProvider } from "@/components/ui/sidebar"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
-import { Suspense } from "react"
-import { Loader2 } from "lucide-react"
+import { AdminAuthProvider } from "@/components/admin/admin-auth-provider"
 import ProtectedRoute from "@/components/protected-route"
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ProtectedRoute requiredRole="admin">
-      <SidebarProvider defaultOpen={true}>
-        <div className="flex h-screen bg-jetblack text-offwhite">
+    <AdminAuthProvider>
+      <ProtectedRoute adminOnly>
+        <div className="flex min-h-screen bg-charcoal">
           <AdminSidebar />
-          <div className="flex-1 overflow-auto bg-jetblack">
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin mr-2" />
-                  <span>Loading...</span>
-                </div>
-              }
-            >
-              <main className="p-6 min-h-screen">{children}</main>
-            </Suspense>
+          <div className="flex-1 md:ml-64 pt-16 md:pt-0">
+            <main className="p-4 md:p-8">{children}</main>
           </div>
         </div>
-      </SidebarProvider>
-    </ProtectedRoute>
+      </ProtectedRoute>
+    </AdminAuthProvider>
   )
 }
