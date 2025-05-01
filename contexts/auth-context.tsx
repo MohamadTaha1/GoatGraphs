@@ -147,12 +147,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // If not logged in and not on login page, redirect to login
-      if (!user && pathname !== "/login" && pathname !== "/admin/login" && pathname !== "/register") {
+      if (!user && pathname !== "/login" && pathname !== "/register") {
         router.push("/login")
       }
 
       // If logged in and on login page, redirect to appropriate section
-      if (user && (pathname === "/login" || pathname === "/admin/login" || pathname === "/register")) {
+      if (user && (pathname === "/login" || pathname === "/register")) {
         if (user.role === "admin" || user.role === "superadmin") {
           router.push("/admin")
         } else {
@@ -165,7 +165,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (user?.role === "admin" || user?.role === "superadmin") &&
         pathname.startsWith("/customer") &&
         pathname !== "/login" &&
-        pathname !== "/admin/login" &&
         pathname !== "/register"
       ) {
         router.push("/admin")
@@ -204,6 +203,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(userWithRole)
+
+      // Redirect based on role
+      if (userWithRole.role === "admin" || userWithRole.role === "superadmin") {
+        router.push("/admin")
+      } else {
+        router.push("/customer")
+      }
+
       setIsLoading(false)
       return true
     } catch (error) {
@@ -252,6 +259,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: displayName,
         photoURL: firebaseUser.photoURL,
       })
+
+      // Redirect to customer page after registration
+      router.push("/customer")
 
       setIsLoading(false)
       return true

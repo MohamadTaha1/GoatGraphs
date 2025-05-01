@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Loader2 } from "lucide-react"
@@ -16,6 +16,7 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children, requiredRole, adminOnly }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const [authorized, setAuthorized] = useState(false)
 
   useEffect(() => {
     if (!isLoading) {
@@ -33,12 +34,16 @@ export default function ProtectedRoute({ children, requiredRole, adminOnly }: Pr
 
       // If role is required and user doesn't have it, redirect
       if (requiredRole && user.role !== requiredRole) {
-        if (user.role === "admin") {
+        if (user.role === "admin" || user.role === "superadmin") {
           router.push("/admin")
         } else {
-          router.push("/")
+          router.push("/customer")
         }
+        return
       }
+
+      // User is authorized
+      setAuthorized(true)
     }
   }, [user, isLoading, router, requiredRole, adminOnly])
 
@@ -53,16 +58,6 @@ export default function ProtectedRoute({ children, requiredRole, adminOnly }: Pr
     )
   }
 
-  // If adminOnly is true, check if user is admin
-  if (adminOnly && user?.role !== "admin" && user?.role !== "superadmin") {
-    return null
-  }
-
-  // If no role is required or user has the required role, render children
-  if (!requiredRole || (user && user.role === requiredRole)) {
-    return <>{children}</>
-  }
-
-  // Otherwise, render nothing (will be redirected)
-  return null
+  // Only render children if authorized
+  return authorized ? <>{children}</> : null
 }

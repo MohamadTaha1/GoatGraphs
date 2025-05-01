@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,6 +30,7 @@ export default function LoginPage() {
       if (!success) {
         setError("Invalid email or password")
       }
+      // No need to redirect here, the auth context will handle it
     } catch (err: any) {
       console.error("Login error:", err)
       if (err.code === "auth/invalid-credential") {
@@ -106,16 +108,23 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center text-sm">
-            <p className="text-offwhite/50 font-body">Don't have an account?</p>
-            <Link href="/register" className="text-gold hover:underline font-body">
-              Create an account
-            </Link>
+            <p className="text-offwhite/50 font-body">Test accounts:</p>
+            <p className="text-offwhite/70 font-body">Admin: admin@legendarysignatures.com / admin123</p>
+            <p className="text-offwhite/70 font-body">Customer: customer@example.com / password123</p>
           </div>
         </CardContent>
-        <CardFooter className="text-center">
-          <Link href="/" className="text-gold hover:underline text-sm w-full font-body">
-            Return to main website
-          </Link>
+        <CardFooter className="flex justify-center">
+          <div className="text-center">
+            <p className="text-sm text-offwhite/70 font-body mb-2">
+              Don't have an account?{" "}
+              <Link href="/register" className="text-gold hover:underline">
+                Register
+              </Link>
+            </p>
+            <Link href="/" className="text-gold hover:underline text-sm font-body">
+              Return to main website
+            </Link>
+          </div>
         </CardFooter>
       </Card>
     </div>
