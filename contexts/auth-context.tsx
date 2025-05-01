@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() || "" // Provide default empty string if pathname is undefined
 
   // Function to get user role from Firestore
   const getUserRole = async (firebaseUser: FirebaseUser): Promise<User | null> => {
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const publicPages = ["/login", "/register", "/shop", "/authenticity", "/about", "/faq", "/contact"]
 
       // Check if current path is a product detail page
-      const isProductDetailPage = pathname.startsWith("/product/")
+      const isProductDetailPage = pathname && pathname.startsWith("/product/")
 
       // If on root path ("/"), redirect based on auth status
       if (pathname === "/") {
@@ -172,13 +172,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // If admin user tries to access customer pages
-      if ((user?.role === "admin" || user?.role === "superadmin") && pathname.startsWith("/customer")) {
+      if ((user?.role === "admin" || user?.role === "superadmin") && pathname && pathname.startsWith("/customer")) {
         router.push("/admin")
         return
       }
 
       // If customer user tries to access admin pages
-      if (user?.role === "customer" && pathname.startsWith("/admin")) {
+      if (user?.role === "customer" && pathname && pathname.startsWith("/admin")) {
         router.push("/customer")
         return
       }

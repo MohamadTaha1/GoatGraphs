@@ -30,7 +30,6 @@ export type Product = {
   createdAt: any
   featured?: boolean
   soldCount?: number
-  categoryId?: string
 }
 
 export function useProducts() {
@@ -156,7 +155,7 @@ export async function deleteProduct(id: string): Promise<boolean> {
   }
 }
 
-// Update the addProduct function with proper null checks
+// Function to add a new product with fallback to placeholder for development
 export async function addProduct(
   productData: Omit<Product, "id" | "createdAt" | "imageUrl" | "imagePath">,
   imageFile: File,
@@ -184,20 +183,15 @@ export async function addProduct(
     if (imageFile) {
       try {
         const timestamp = Date.now()
-        const safeFileName = imageFile.name ? imageFile.name.replace(/\s+/g, "_") : "image.jpg"
-        const filename = `${timestamp}_${safeFileName}`
+        const filename = `${timestamp}_${imageFile.name.replace(/\s+/g, "_")}`
         imagePath = `products/${filename}`
 
-        // Use the updated storage bucket with proper error handling
-        const app = getFirebaseApp()
-        if (!app) {
-          throw new Error("Firebase app not initialized")
-        }
-
-        const storage = getStorage(app)
+        // Use the updated storage bucket
+        const storage = getStorage(getFirebaseApp(), "gs://goatgraphs-shirts.firebasestorage.app")
         const storageRef = ref(storage, imagePath)
 
-        console.log("Starting upload...")
+        // Show upload progress in console
+        console.log("Starting upload to goatgraphs-shirts.firebasestorage.app...")
 
         const uploadTask = uploadBytes(storageRef, imageFile)
         const snapshot = await uploadTask
@@ -208,16 +202,14 @@ export async function addProduct(
         console.log("Image URL:", imageUrl)
       } catch (uploadError) {
         console.error("Error uploading image:", uploadError)
-        throw new Error(
-          `Failed to upload image: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`,
-        )
+        throw new Error(`Failed to upload image: ${uploadError.message}`)
       }
     }
 
     // Create product document in Firestore
     const newProductData = {
       ...productData,
-      imageUrl: imageUrl || "/diverse-products-still-life.png",
+      imageUrl,
       imagePath,
       createdAt: serverTimestamp(),
     }

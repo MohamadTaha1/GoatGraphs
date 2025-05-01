@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 
 interface AuctionCountdownProps {
-  endTime: Date | string | any
+  endTime: string | any
 }
 
 export function AuctionCountdown({ endTime }: AuctionCountdownProps) {
@@ -16,52 +16,30 @@ export function AuctionCountdown({ endTime }: AuctionCountdownProps) {
   const [isEnded, setIsEnded] = useState(false)
 
   useEffect(() => {
-    // Safety check if endTime is not provided
-    if (!endTime) {
-      setIsEnded(true)
-      return
-    }
-
     const calculateTimeLeft = () => {
       let endDate: Date
 
-      try {
-        // Handle Firestore timestamp
-        if (endTime?.toDate && typeof endTime.toDate === "function") {
-          endDate = endTime.toDate()
-        }
-        // Handle string date
-        else if (typeof endTime === "string") {
-          endDate = new Date(endTime)
-        }
-        // Handle if it's already a Date object
-        else if (endTime instanceof Date) {
-          endDate = endTime
-        }
-        // Default fallback
-        else {
-          console.error("Invalid endTime format:", endTime)
-          setIsEnded(true)
-          return { days: 0, hours: 0, minutes: 0, seconds: 0 }
-        }
+      // Handle Firestore timestamp
+      if (endTime?.toDate) {
+        endDate = endTime.toDate()
+      } else if (typeof endTime === "string") {
+        endDate = new Date(endTime)
+      } else {
+        endDate = new Date(endTime)
+      }
 
-        const difference = endDate.getTime() - new Date().getTime()
+      const difference = endDate.getTime() - new Date().getTime()
 
-        if (difference <= 0) {
-          setIsEnded(true)
-          return { days: 0, hours: 0, minutes: 0, seconds: 0 }
-        }
-
-        return {
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / 1000 / 60) % 60),
-          seconds: Math.floor((difference / 1000) % 60),
-        }
-      } catch (err) {
-        console.error("Error calculating time left:", err)
+      if (difference <= 0) {
         setIsEnded(true)
         return { days: 0, hours: 0, minutes: 0, seconds: 0 }
+      }
+
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
       }
     }
 

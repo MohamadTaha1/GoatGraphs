@@ -36,29 +36,16 @@ export function useAuctions() {
     setError(null)
     try {
       const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
-
-      console.log("Fetching auctions from Firestore")
-
       const auctionsRef = collection(db, "auctions")
-      const q = query(auctionsRef, orderBy("createdAt", "desc"))
+      const q = query(auctionsRef, orderBy("endTime", "desc"))
       const querySnapshot = await getDocs(q)
 
-      console.log(`Found ${querySnapshot.docs.length} auctions`)
+      const auctionsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Auction[]
 
-      if (querySnapshot.empty) {
-        console.log("No auctions found in Firestore")
-        setAuctions([])
-      } else {
-        const auctionsData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Auction[]
-
-        setAuctions(auctionsData)
-      }
+      setAuctions(auctionsData)
     } catch (err) {
       console.error("Error fetching auctions:", err)
       setError("Failed to load auctions. Please try again.")
@@ -72,10 +59,6 @@ export function useAuctions() {
     setError(null)
     try {
       const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
-
       const auctionsRef = collection(db, "auctions")
       const now = new Date()
 
@@ -91,13 +74,8 @@ export function useAuctions() {
         }))
         .filter((auction) => {
           // Filter for auctions that haven't ended yet
-          try {
-            const endTime = auction.endTime?.toDate ? auction.endTime.toDate() : new Date(auction.endTime)
-            return endTime > now
-          } catch (err) {
-            console.error("Error parsing auction end time:", err)
-            return false
-          }
+          const endTime = auction.endTime?.toDate ? auction.endTime.toDate() : new Date(auction.endTime)
+          return endTime > now
         }) as Auction[]
 
       setAuctions(auctionsData)
@@ -114,10 +92,6 @@ export function useAuctions() {
     setError(null)
     try {
       const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
-
       const docRef = doc(db, "auctions", id)
       const docSnap = await getDoc(docRef)
 
@@ -145,10 +119,6 @@ export function useAuctions() {
 
     try {
       const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
-
       const auctionRef = doc(db, "auctions", auctionId)
       const auctionSnap = await getDoc(auctionRef)
 
@@ -159,14 +129,7 @@ export function useAuctions() {
       const auctionData = auctionSnap.data() as Auction
 
       // Check if auction has ended
-      let endTime
-      try {
-        endTime = auctionData.endTime?.toDate ? auctionData.endTime.toDate() : new Date(auctionData.endTime)
-      } catch (err) {
-        console.error("Error parsing auction end time:", err)
-        throw new Error("Invalid auction end time")
-      }
-
+      const endTime = auctionData.endTime?.toDate ? auctionData.endTime.toDate() : new Date(auctionData.endTime)
       if (endTime < new Date()) {
         throw new Error("This auction has ended")
       }
@@ -180,7 +143,7 @@ export function useAuctions() {
       const bidHistory = auctionData.bidHistory || []
       const newBid = {
         userId: user.uid,
-        userName: user.displayName || "Anonymous",
+        userName: user.displayName,
         amount: bidAmount,
         timestamp: serverTimestamp(),
       }

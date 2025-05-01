@@ -87,17 +87,11 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const handleAddToCart = () => {
     if (!product) return
 
-    // Convert the product ID to a number for compatibility with the cart provider
-    const numericId =
-      typeof product.id === "string" ? Number.parseInt(product.id.replace(/\D/g, "")) || Date.now() : product.id
-
     addItem({
-      id: numericId,
+      productId: product.id,
       name: product.title,
-      team: product.signedBy || "",
-      image: product.imageUrl || "/placeholder.svg",
       price: typeof product.price === "number" ? product.price : Number.parseFloat(product.price as string) || 0,
-      quantity: quantity,
+      image: product.imageUrl || "/placeholder.svg",
     })
 
     toast({

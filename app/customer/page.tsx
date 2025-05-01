@@ -95,21 +95,10 @@ export default function CustomerHome() {
         try {
           const bannersQuery = query(collection(db, "banners"), where("active", "==", true))
           const bannersSnapshot = await getDocs(bannersQuery)
-          const bannersData = bannersSnapshot.docs.map((doc) => {
-            const data = doc.data()
-            // Ensure all required banner properties have default values
-            return {
-              id: doc.id,
-              title: data.title || "Featured Banner",
-              subtitle: data.subtitle || "Check out our latest products",
-              imageUrl: data.imageUrl || "/placeholder.svg",
-              buttonText: data.buttonText || "Shop Now",
-              buttonLink: data.buttonLink || "/customer/shop", // Ensure buttonLink always has a value
-              active: data.active !== undefined ? data.active : true,
-              createdAt: data.createdAt,
-            }
-          }) as Banner[]
-
+          const bannersData = bannersSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Banner[]
           // Sort in memory instead of using orderBy to avoid composite index requirement
           bannersData.sort((a, b) => {
             const dateA = a.createdAt?.toDate?.() || new Date(0)
@@ -286,8 +275,8 @@ export default function CustomerHome() {
                     </h1>
                     <p className="text-xl text-white/80 mb-8 max-w-xl">{banner.subtitle}</p>
                     <Button asChild className="w-fit bg-gold hover:bg-gold-deep text-black">
-                      <Link href={banner.buttonLink || "/customer/shop"}>
-                        {banner.buttonText || "Shop Now"} <ArrowRight className="ml-2 h-4 w-4" />
+                      <Link href={banner.buttonLink || "#"}>
+                        {banner.buttonText} <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
                   </div>

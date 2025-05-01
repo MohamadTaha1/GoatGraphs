@@ -45,19 +45,13 @@ export function getFirestoreInstance() {
 
   if (!dbInstance) {
     try {
-      if (!firebaseApp) {
+      if (firebaseApp) {
+        dbInstance = db as Firestore
+        console.log("Firestore instance created successfully")
+      } else {
         console.error("Firebase app is not initialized")
         return null
       }
-
-      dbInstance = db as Firestore
-
-      if (!dbInstance) {
-        console.error("Firestore failed to initialize")
-        return null
-      }
-
-      console.log("Firestore instance created successfully")
     } catch (error) {
       console.error("Error getting Firestore instance:", error)
       throw new Error("Failed to get Firestore instance")
@@ -75,15 +69,10 @@ export function getAuthInstance() {
 
   if (!authInstance) {
     try {
-      if (!firebaseApp) {
+      if (firebaseApp) {
+        authInstance = auth as Auth
+      } else {
         console.error("Firebase app is not initialized")
-        return null
-      }
-
-      authInstance = auth as Auth
-
-      if (!authInstance) {
-        console.error("Auth failed to initialize")
         return null
       }
     } catch (error) {
@@ -98,18 +87,13 @@ export function getAuthInstance() {
 export function getStorageInstance() {
   if (!storageInstance) {
     try {
-      if (!firebaseApp) {
+      if (firebaseApp) {
+        storageInstance = storage as FirebaseStorage
+        console.log("Firebase Storage instance created successfully")
+      } else {
         console.error("Firebase app is not initialized")
         return null
       }
-
-      storageInstance = storage as FirebaseStorage
-
-      if (!storageInstance) {
-        console.error("Storage failed to initialize")
-        return null
-      }
-      console.log("Firebase Storage instance created successfully")
     } catch (error) {
       console.error("Error initializing Firebase Storage:", error)
       return null

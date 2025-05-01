@@ -15,7 +15,7 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() || "" // Provide default empty string if pathname is undefined
 
   useEffect(() => {
     if (!isLoading) {

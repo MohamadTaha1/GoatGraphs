@@ -97,7 +97,7 @@ export default function BannerDisplay({ position, className = "" }: BannerDispla
           {banner.subtitle && <p className="text-xl text-offwhite max-w-md mb-6">{banner.subtitle}</p>}
           {banner.linkUrl && (
             <Button asChild className="w-fit bg-gold-soft hover:bg-gold-deep text-jetblack">
-              <Link href={banner.linkUrl || "/customer/shop"}>Learn More</Link>
+              <Link href={banner.linkUrl}>Learn More</Link>
             </Button>
           )}
         </div>

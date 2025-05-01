@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,25 +12,15 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ShoppingCart, Filter, Search, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useProducts } from "@/hooks/use-products"
-import { useCart } from "@/hooks/use-cart"
+import { useCart } from "@/components/cart-provider"
 import { formatPrice } from "@/lib/utils"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, getDocs, doc, getDoc } from "firebase/firestore"
-
-interface Category {
-  id: string
-  name: string
-  slug: string
-  description: string
-}
+import { useToast } from "@/components/ui/use-toast"
 
 export default function ShopPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const categoryId = searchParams.get("category")
-
   const { products, loading, error } = useProducts()
-  const { addToCart } = useCart()
+  const { addItem } = useCart()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [priceRange, setPriceRange] = useState("all")
   const [selectedTypes, setSelectedTypes] = useState({
@@ -40,67 +30,6 @@ export default function ShopPage() {
   })
   const [sortOption, setSortOption] = useState("featured")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(categoryId)
-  const [categoryName, setCategoryName] = useState<string>("")
-  const [loadingCategory, setLoadingCategory] = useState(false)
-
-  // Fetch categories
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const db = getFirestoreInstance()
-
-        if (!db) {
-          throw new Error("Firestore instance is null")
-        }
-
-        const querySnapshot = await getDocs(collection(db, "categories"))
-        const categoriesData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Category[]
-
-        setCategories(categoriesData)
-      } catch (error) {
-        console.error("Error fetching categories:", error)
-      }
-    }
-
-    fetchCategories()
-  }, [])
-
-  // Fetch category name if categoryId is provided
-  useEffect(() => {
-    async function fetchCategoryName() {
-      if (!categoryId) {
-        setCategoryName("")
-        return
-      }
-
-      try {
-        setLoadingCategory(true)
-        const db = getFirestoreInstance()
-
-        if (!db) {
-          throw new Error("Firestore instance is null")
-        }
-
-        const docRef = doc(db, "categories", categoryId)
-        const docSnap = await getDoc(docRef)
-
-        if (docSnap.exists()) {
-          setCategoryName(docSnap.data().name)
-        }
-      } catch (error) {
-        console.error("Error fetching category:", error)
-      } finally {
-        setLoadingCategory(false)
-      }
-    }
-
-    fetchCategoryName()
-  }, [categoryId])
 
   // Handle type filter changes
   const handleTypeChange = (type) => {
@@ -115,23 +44,7 @@ export default function ShopPage() {
     setPriceRange(value)
   }
 
-  // Handle category change
-  const handleCategoryChange = (categoryId: string | null) => {
-    setSelectedCategory(categoryId)
-
-    // Update URL with category parameter
-    const params = new URLSearchParams(searchParams.toString())
-
-    if (categoryId) {
-      params.set("category", categoryId)
-    } else {
-      params.delete("category")
-    }
-
-    router.push(`/customer/shop?${params.toString()}`)
-  }
-
-  // Filter products based on search, type, price, and category
+  // Filter products based on search, type, and price
   const filteredProducts = products.filter((product) => {
     if (!product) return false
 
@@ -158,10 +71,7 @@ export default function ShopPage() {
       matchesPrice = price > 1000
     }
 
-    // Category filter
-    const matchesCategory = !selectedCategory || product.categoryId === selectedCategory
-
-    return matchesSearch && matchesType && matchesPrice && matchesCategory
+    return matchesSearch && matchesType && matchesPrice
   })
 
   // Sort products
@@ -183,12 +93,18 @@ export default function ShopPage() {
 
   // Handle add to cart
   const handleAddToCart = (product) => {
-    addToCart({
-      id: product.id,
-      title: product.title || "Untitled Product",
-      price: product.price || 0,
-      imageUrl: product.imageUrl || "/placeholder.svg?height=100&width=100",
-      quantity: 1,
+    if (!product) return
+
+    addItem({
+      productId: product.id,
+      name: product.title || "Untitled Product",
+      price: typeof product.price === "number" ? product.price : Number(product.price || 0),
+      image: product.imageUrl || "/placeholder.svg?height=100&width=100",
+    })
+
+    toast({
+      title: "Added to cart",
+      description: `${product.title || "Product"} has been added to your cart.`,
     })
   }
 
@@ -197,12 +113,10 @@ export default function ShopPage() {
       <div className="flex flex-col md:flex-row justify-between items-start mb-8">
         <div>
           <h1 className="text-3xl font-display font-bold mb-2 bg-gold-gradient bg-clip-text text-transparent">
-            {categoryName ? `${categoryName} Collection` : "Shop Authentic Signed Jerseys"}
+            Shop Authentic Signed Jerseys
           </h1>
           <p className="text-offwhite/70 font-body">
-            {categoryName
-              ? `Browse our collection of authenticated ${categoryName.toLowerCase()} from legendary players`
-              : "Browse our collection of authenticated signed football jerseys from legendary players"}
+            Browse our collection of authenticated signed football jerseys from legendary players
           </p>
         </div>
       </div>
@@ -243,7 +157,7 @@ export default function ShopPage() {
       {/* Filter Panel */}
       {isFilterOpen && (
         <div className="bg-charcoal border border-gold/30 rounded-lg p-4 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Product Type Filter */}
             <div>
               <h3 className="font-display text-gold mb-3">Product Type</h3>
@@ -282,35 +196,6 @@ export default function ShopPage() {
                   </Label>
                 </div>
               </div>
-            </div>
-
-            {/* Category Filter */}
-            <div>
-              <h3 className="font-display text-gold mb-3">Categories</h3>
-              <RadioGroup
-                value={selectedCategory || ""}
-                onValueChange={(value) => handleCategoryChange(value || null)}
-                className="space-y-2"
-              >
-                <div className="flex items-center">
-                  <RadioGroupItem value="" id="category-all" className="border-gold/50 text-gold" />
-                  <Label htmlFor="category-all" className="ml-2 text-offwhite">
-                    All Categories
-                  </Label>
-                </div>
-                {categories.map((category) => (
-                  <div key={category.id} className="flex items-center">
-                    <RadioGroupItem
-                      value={category.id}
-                      id={`category-${category.id}`}
-                      className="border-gold/50 text-gold"
-                    />
-                    <Label htmlFor={`category-${category.id}`} className="ml-2 text-offwhite">
-                      {category.name}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
             </div>
 
             {/* Price Range Filter */}
@@ -359,7 +244,6 @@ export default function ShopPage() {
                   setSelectedTypes({ shirt: false, ball: false, photo: false })
                   setPriceRange("all")
                   setSearchTerm("")
-                  handleCategoryChange(null)
                 }}
               >
                 Reset Filters
@@ -396,7 +280,6 @@ export default function ShopPage() {
               setSelectedTypes({ shirt: false, ball: false, photo: false })
               setPriceRange("all")
               setSearchTerm("")
-              handleCategoryChange(null)
             }}
           >
             Clear Filters

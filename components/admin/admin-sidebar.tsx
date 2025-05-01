@@ -19,8 +19,6 @@ import {
   Menu,
   X,
   Gavel,
-  Video,
-  FileVideo,
 } from "lucide-react"
 
 import {
@@ -137,35 +135,6 @@ export function AdminSidebar() {
                     <Link href="/admin/auctions">
                       <Gavel className="h-4 w-4 text-gold" />
                       <span>Auctions</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarGroup>
-            <SidebarGroupLabel>Videos</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/videos")} tooltip="Video Players">
-                    <Link href="/admin/videos">
-                      <Video className="h-4 w-4 text-gold" />
-                      <span>Video Players</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith("/admin/video-orders")}
-                    tooltip="Video Orders"
-                  >
-                    <Link href="/admin/video-orders">
-                      <FileVideo className="h-4 w-4 text-gold" />
-                      <span>Video Orders</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -391,36 +360,6 @@ export function AdminSidebar() {
                   >
                     <Gavel className="h-4 w-4" />
                     <span>Auctions</span>
-                  </Link>
-                </nav>
-              </div>
-
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-gold/70">Videos</h3>
-                <nav className="space-y-1">
-                  <Link
-                    href="/admin/videos"
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm ${
-                      pathname.startsWith("/admin/videos")
-                        ? "bg-gold/10 text-gold"
-                        : "text-offwhite hover:bg-gold/10 hover:text-gold"
-                    }`}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Video className="h-4 w-4" />
-                    <span>Video Players</span>
-                  </Link>
-                  <Link
-                    href="/admin/video-orders"
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm ${
-                      pathname.startsWith("/admin/video-orders")
-                        ? "bg-gold/10 text-gold"
-                        : "text-offwhite hover:bg-gold/10 hover:text-gold"
-                    }`}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <FileVideo className="h-4 w-4" />
-                    <span>Video Orders</span>
                   </Link>
                 </nav>
               </div>

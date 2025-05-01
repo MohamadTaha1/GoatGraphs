@@ -58,12 +58,10 @@ export function DynamicFeaturedJerseys() {
       typeof product.price === "string" ? Number.parseFloat(product.price) : Number(product.price || 0)
 
     addItem({
-      id: product.id,
+      productId: product.id,
       name: product.title || "Untitled Product",
-      team: product.signedBy || "",
-      image: product.imageUrl || "",
       price: productPrice,
-      quantity: 1,
+      image: product.imageUrl || "/placeholder.svg?height=100&width=100",
     })
 
     toast({
