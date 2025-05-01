@@ -80,7 +80,7 @@ export default function CheckoutPage() {
       // Format order data
       const orderData = {
         numericOrderId: nextOrderId, // Add numeric order ID
-        userId: user?.id || null,
+        userId: user?.uid || null, // Ensure we're using uid, not id
         customerInfo: {
           name: `${formData.firstName} ${formData.lastName}`,
           email: formData.email,
@@ -119,9 +119,26 @@ export default function CheckoutPage() {
         ],
       }
 
+      console.log("Creating order with user ID:", user?.uid)
+
       // Add order to Firestore
       const docRef = await addDoc(collection(db, "orders"), orderData)
       setOrderId(nextOrderId) // Use the numeric ID for display
+
+      // If user is logged in, update their orders array
+      if (user?.uid) {
+        try {
+          const { doc, updateDoc, arrayUnion } = await import("firebase/firestore")
+          const userRef = doc(db, "users", user.uid)
+          await updateDoc(userRef, {
+            orders: arrayUnion(docRef.id),
+          })
+          console.log("Updated user's orders array with new order ID:", docRef.id)
+        } catch (userUpdateError) {
+          console.error("Error updating user's orders array:", userUpdateError)
+          // Continue with order process even if this fails
+        }
+      }
 
       // Clear cart
       clearCart()
