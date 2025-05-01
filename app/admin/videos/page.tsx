@@ -13,10 +13,22 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Search, Loader2, AlertCircle } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Loader2,
+  AlertCircle,
+  Upload,
+  Video,
+} from "lucide-react"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp } from "firebase/firestore"
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getStorageInstance } from "@/lib/firebase/storage"
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 import Image from "next/image"
 
 // Define the VideoPlayer type
@@ -27,6 +39,7 @@ interface VideoPlayer {
   team: string
   price: number
   imageUrl: string
+  videoUrl?: string
   description: string
   available: boolean
   featured: boolean
@@ -45,7 +58,10 @@ export default function AdminVideosPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<VideoPlayer | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [videoFile, setVideoFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [videoUploading, setVideoUploading] = useState(false)
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0)
   const { toast } = useToast()
 
   const playersPerPage = 10
@@ -60,6 +76,7 @@ export default function AdminVideosPage() {
     available: true,
     featured: false,
     imageUrl: "",
+    videoUrl: "",
   })
 
   useEffect(() => {
@@ -120,6 +137,17 @@ export default function AdminVideosPage() {
     }
   }
 
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setVideoFile(file)
+      toast({
+        title: "Video selected",
+        description: `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`,
+      })
+    }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({
@@ -153,8 +181,10 @@ export default function AdminVideosPage() {
       available: true,
       featured: false,
       imageUrl: "",
+      videoUrl: "",
     })
     setImageFile(null)
+    setVideoFile(null)
     setImagePreview(null)
     setIsDialogOpen(true)
   }
@@ -170,14 +200,66 @@ export default function AdminVideosPage() {
       available: player.available,
       featured: player.featured,
       imageUrl: player.imageUrl,
+      videoUrl: player.videoUrl || "",
     })
     setImagePreview(player.imageUrl)
+    setVideoFile(null)
     setIsDialogOpen(true)
   }
 
   const openDeleteDialog = (player: VideoPlayer) => {
     setSelectedPlayer(player)
     setIsDeleteDialogOpen(true)
+  }
+
+  const uploadVideo = async () => {
+    if (!videoFile) return null
+
+    try {
+      setVideoUploading(true)
+      setVideoUploadProgress(0)
+
+      const storage = getStorageInstance()
+      if (!storage) {
+        throw new Error("Storage not initialized")
+      }
+
+      const timestamp = Date.now()
+      const videoFileName = `${timestamp}_${videoFile.name.replace(/\s+/g, "_")}`
+      const storageRef = ref(storage, `videos/${videoFileName}`)
+
+      // Create upload task
+      const uploadTask = uploadBytes(storageRef, videoFile)
+
+      // Wait for upload to complete
+      const snapshot = await uploadTask
+
+      // Get download URL
+      const downloadURL = await getDownloadURL(snapshot.ref)
+
+      setFormData((prev) => ({
+        ...prev,
+        videoUrl: downloadURL,
+      }))
+
+      toast({
+        title: "Video uploaded successfully",
+        description: "The video has been uploaded and will be saved with the player.",
+      })
+
+      return downloadURL
+    } catch (error) {
+      console.error("Error uploading video:", error)
+      toast({
+        title: "Upload failed",
+        description: "There was a problem uploading the video. Please try again.",
+        variant: "destructive",
+      })
+      return null
+    } finally {
+      setVideoUploading(false)
+      setVideoUploadProgress(100)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -191,10 +273,14 @@ export default function AdminVideosPage() {
       }
 
       let imageUrl = formData.imageUrl
+      let videoUrl = formData.videoUrl
 
       // Upload image if a new one is selected
       if (imageFile) {
-        const storage = getStorage()
+        const storage = getStorageInstance()
+        if (!storage) {
+          throw new Error("Storage not initialized")
+        }
         const timestamp = Date.now()
         const storageRef = ref(storage, `videoPlayers/${timestamp}_${imageFile.name}`)
 
@@ -202,9 +288,15 @@ export default function AdminVideosPage() {
         imageUrl = await getDownloadURL(storageRef)
       }
 
+      // Upload video if a new one is selected
+      if (videoFile) {
+        videoUrl = (await uploadVideo()) || videoUrl
+      }
+
       const playerData = {
         ...formData,
         imageUrl,
+        videoUrl,
         updatedAt: Timestamp.now(),
       }
 
@@ -338,6 +430,7 @@ export default function AdminVideosPage() {
                   <TableHead>Price</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Featured</TableHead>
+                  <TableHead>Video</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -383,6 +476,18 @@ export default function AdminVideosPage() {
                           {player.featured ? "Featured" : "Standard"}
                         </span>
                       </TableCell>
+                      <TableCell>
+                        {player.videoUrl ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-500">
+                            <Video className="h-3 w-3 mr-1" />
+                            Uploaded
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-500">
+                            None
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
@@ -409,7 +514,7 @@ export default function AdminVideosPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       No players found.
                     </TableCell>
                   </TableRow>
@@ -548,6 +653,38 @@ export default function AdminVideosPage() {
                   onChange={handleImageChange}
                   className="border-gold-700"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="video">Player Video (Sample or Introduction)</Label>
+              <div className="flex flex-col gap-2">
+                {formData.videoUrl && (
+                  <div className="p-2 bg-gold-500/10 rounded-md">
+                    <p className="text-sm text-gold-500 flex items-center">
+                      <Video className="h-4 w-4 mr-2" />
+                      Video already uploaded
+                    </p>
+                  </div>
+                )}
+                <Input
+                  id="video"
+                  type="file"
+                  accept="video/*"
+                  onChange={handleVideoChange}
+                  className="border-gold-700"
+                />
+                {videoFile && !videoUploading && (
+                  <Button type="button" onClick={uploadVideo} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Video Now
+                  </Button>
+                )}
+                {videoUploading && (
+                  <div className="w-full bg-gray-700 rounded-full h-2.5">
+                    <div className="bg-gold-500 h-2.5 rounded-full" style={{ width: `${videoUploadProgress}%` }}></div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -14,34 +14,32 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  where,
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirebaseApp } from "@/lib/firebase"
 
-export type Product = {
+export type Category = {
   id: string
-  title: string
-  type: "shirt" | "ball" | "photo"
-  signedBy: string
-  price: number
-  available: boolean
+  name: string
+  slug: string
   description: string
-  imageUrl: string
-  createdAt: any
-  featured?: boolean
-  soldCount?: number
-  categoryId?: string
+  imageUrl?: string
+  featured: boolean
+  order?: number
+  createdAt?: any
+  updatedAt?: any
 }
 
-export function useProducts() {
-  const [products, setProducts] = useState<Product[]>([])
+export function useCategories(featuredOnly = false) {
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     let isMounted = true
 
-    async function fetchProducts() {
+    async function fetchCategories() {
       try {
         setLoading(true)
         const db = getFirestoreInstance()
@@ -50,39 +48,44 @@ export function useProducts() {
           throw new Error("Firestore instance is null")
         }
 
-        // Create a query to get products ordered by creation date
-        const q = query(collection(db, "products"), orderBy("createdAt", "desc"))
+        // Create a query to get categories
+        let q
+        if (featuredOnly) {
+          q = query(collection(db, "categories"), where("featured", "==", true), orderBy("order", "asc"))
+        } else {
+          q = query(collection(db, "categories"), orderBy("order", "asc"))
+        }
 
         const querySnapshot = await getDocs(q)
-        const productsData = querySnapshot.docs.map((doc) => ({
+        const categoriesData = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        })) as Product[]
+        })) as Category[]
 
         if (isMounted) {
-          setProducts(productsData)
+          setCategories(categoriesData)
           setLoading(false)
         }
       } catch (err) {
-        console.error("Error fetching products:", err)
+        console.error("Error fetching categories:", err)
         if (isMounted) {
-          setError(err instanceof Error ? err : new Error("Failed to fetch products"))
+          setError(err instanceof Error ? err : new Error("Failed to fetch categories"))
           setLoading(false)
         }
       }
     }
 
-    fetchProducts()
+    fetchCategories()
 
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [featuredOnly])
 
-  return { products, loading, error }
+  return { categories, loading, error }
 }
 
-export async function getProduct(id: string): Promise<Product | null> {
+export async function getCategory(id: string): Promise<Category | null> {
   try {
     const db = getFirestoreInstance()
 
@@ -90,21 +93,21 @@ export async function getProduct(id: string): Promise<Product | null> {
       throw new Error("Firestore instance is null")
     }
 
-    const docRef = doc(db, "products", id)
+    const docRef = doc(db, "categories", id)
     const docSnap = await getDoc(docRef)
 
     if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Product
+      return { id: docSnap.id, ...docSnap.data() } as Category
     } else {
       return null
     }
   } catch (error) {
-    console.error("Error getting product:", error)
+    console.error("Error getting category:", error)
     throw error
   }
 }
 
-export async function updateProduct(id: string, productData: Partial<Product>, imageFile?: File): Promise<boolean> {
+export async function updateCategory(id: string, categoryData: Partial<Category>, imageFile?: File): Promise<boolean> {
   try {
     const db = getFirestoreInstance()
 
@@ -112,35 +115,37 @@ export async function updateProduct(id: string, productData: Partial<Product>, i
       throw new Error("Firestore instance is null")
     }
 
-    const productRef = doc(db, "products", id)
-    const updateData = { ...productData }
+    const categoryRef = doc(db, "categories", id)
+    const updateData = {
+      ...categoryData,
+      updatedAt: serverTimestamp(),
+    }
 
     // If there's a new image file, upload it
     if (imageFile) {
       const timestamp = Date.now()
       const safeFileName = imageFile.name.replace(/[^a-zA-Z0-9.]/g, "_")
       const filename = `${timestamp}_${safeFileName}`
-      const imagePath = `products/${filename}`
+      const imagePath = `categories/${filename}`
 
       try {
         const imageUrl = await uploadFile(imageFile, imagePath)
         updateData.imageUrl = imageUrl
-        updateData.imagePath = imagePath
       } catch (uploadError) {
         console.error("Error uploading image:", uploadError)
         // Continue with update without changing the image
       }
     }
 
-    await updateDoc(productRef, updateData)
+    await updateDoc(categoryRef, updateData)
     return true
   } catch (error) {
-    console.error("Error updating product:", error)
+    console.error("Error updating category:", error)
     return false
   }
 }
 
-export async function deleteProduct(id: string): Promise<boolean> {
+export async function deleteCategory(id: string): Promise<boolean> {
   try {
     const db = getFirestoreInstance()
 
@@ -148,18 +153,17 @@ export async function deleteProduct(id: string): Promise<boolean> {
       throw new Error("Firestore instance is null")
     }
 
-    await deleteDoc(doc(db, "products", id))
+    await deleteDoc(doc(db, "categories", id))
     return true
   } catch (error) {
-    console.error("Error deleting product:", error)
+    console.error("Error deleting category:", error)
     return false
   }
 }
 
-// Update the addProduct function with proper null checks
-export async function addProduct(
-  productData: Omit<Product, "id" | "createdAt" | "imageUrl" | "imagePath">,
-  imageFile: File,
+export async function addCategory(
+  categoryData: Omit<Category, "id" | "createdAt" | "updatedAt">,
+  imageFile?: File,
 ): Promise<string | null> {
   try {
     if (typeof window === "undefined") return null
@@ -177,16 +181,15 @@ export async function addProduct(
       return null
     }
 
-    // Upload image to Firebase Storage
+    // Upload image to Firebase Storage if provided
     let imageUrl = null
-    let imagePath = null
 
     if (imageFile) {
       try {
         const timestamp = Date.now()
         const safeFileName = imageFile.name ? imageFile.name.replace(/\s+/g, "_") : "image.jpg"
         const filename = `${timestamp}_${safeFileName}`
-        imagePath = `products/${filename}`
+        const imagePath = `categories/${filename}`
 
         // Use the updated storage bucket with proper error handling
         const app = getFirebaseApp()
@@ -214,18 +217,18 @@ export async function addProduct(
       }
     }
 
-    // Create product document in Firestore
-    const newProductData = {
-      ...productData,
-      imageUrl: imageUrl || "/diverse-products-still-life.png",
-      imagePath,
+    // Create category document in Firestore
+    const newCategoryData = {
+      ...categoryData,
+      imageUrl: imageUrl || null,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     }
 
-    const docRef = await addDoc(collection(db, "products"), newProductData)
+    const docRef = await addDoc(collection(db, "categories"), newCategoryData)
     return docRef.id
   } catch (error) {
-    console.error("Error adding product:", error)
+    console.error("Error adding category:", error)
     return null
   }
 }

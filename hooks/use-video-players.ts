@@ -11,6 +11,7 @@ export interface VideoPlayer {
   team: string
   price: number
   imageUrl: string
+  videoUrl?: string
   description: string
   available: boolean
   featured: boolean
