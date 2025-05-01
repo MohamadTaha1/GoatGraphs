@@ -135,8 +135,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         // Add new item with quantity 1
+        // Ensure price is a number
+        const price = typeof item.price === "string" ? Number.parseFloat(item.price) : Number(item.price || 0)
+
         const newItem: CartItem = {
           ...item,
+          price, // Use the converted price
           id: `${item.productId}_${Date.now()}`,
           quantity: 1,
         }

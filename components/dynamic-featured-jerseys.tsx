@@ -54,13 +54,11 @@ export function DynamicFeaturedJerseys() {
   const handleAddToCart = (product) => {
     if (!product) return
 
-    const productPrice =
-      typeof product.price === "string" ? Number.parseFloat(product.price) : Number(product.price || 0)
-
+    // Ensure we have a valid product with required fields
     addItem({
       productId: product.id,
       name: product.title || "Untitled Product",
-      price: productPrice,
+      price: typeof product.price === "string" ? Number.parseFloat(product.price) : Number(product.price || 0),
       image: product.imageUrl || "/placeholder.svg?height=100&width=100",
     })
 

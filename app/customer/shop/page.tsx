@@ -95,10 +95,11 @@ export default function ShopPage() {
   const handleAddToCart = (product) => {
     if (!product) return
 
+    // Ensure we have a valid product with required fields
     addItem({
       productId: product.id,
       name: product.title || "Untitled Product",
-      price: typeof product.price === "number" ? product.price : Number(product.price || 0),
+      price: typeof product.price === "string" ? Number.parseFloat(product.price) : Number(product.price || 0),
       image: product.imageUrl || "/placeholder.svg?height=100&width=100",
     })
 
