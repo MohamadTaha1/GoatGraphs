@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -9,21 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { CreditCard, ArrowLeft, CheckCircle2, Truck, Shield, Loader2 } from "lucide-react"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
+import { ArrowLeft, CheckCircle2, Truck, Shield, Loader2 } from "lucide-react"
+import { db } from "@/lib/firebase/app"
 import { collection, addDoc, Timestamp, query, orderBy, limit, getDocs } from "firebase/firestore"
 
 export default function CheckoutPage() {
-  const router = useRouter()
-  const { user } = useAuth()
   const { items, subtotal, clearCart } = useCart()
+  const { user } = useAuth()
+  const router = useRouter()
   const { toast } = useToast()
-  const [paymentMethod, setPaymentMethod] = useState("credit-card")
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [orderId, setOrderId] = useState<number | null>(null)
@@ -47,6 +45,12 @@ export default function CheckoutPage() {
     notes: "",
   })
 
+  useEffect(() => {
+    if (items.length === 0) {
+      router.push("/customer/cart")
+    }
+  }, [items, router])
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -57,12 +61,6 @@ export default function CheckoutPage() {
     setIsProcessing(true)
 
     try {
-      // Create order in Firestore
-      const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
-
       // Get the latest order ID to increment
       let nextOrderId = 1
       try {
@@ -103,8 +101,8 @@ export default function CheckoutPage() {
         shipping: deliveryFee,
         tax,
         total,
-        paymentMethod: paymentMethod === "credit-card" ? "Credit Card" : "Cash on Delivery",
-        paymentStatus: paymentMethod === "credit-card" ? "paid" : "pending",
+        paymentMethod: "Credit Card",
+        paymentStatus: "paid",
         orderStatus: "pending",
         shippingMethod: "Standard",
         notes: formData.notes,
@@ -319,98 +317,70 @@ export default function CheckoutPage() {
 
             <Card className="border border-gold-700 mb-6">
               <CardHeader>
-                <CardTitle className="font-display text-gold-500">Payment Method</CardTitle>
+                <CardTitle className="font-display text-gold-500">Payment Information</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Tabs value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 bg-black border border-gold-700">
-                    <TabsTrigger
-                      value="credit-card"
-                      className="text-gold-500 data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
-                    >
-                      <CreditCard className="mr-2 h-4 w-4" /> Credit Card
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="cash-on-delivery"
-                      className="text-gold-500 data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
-                    >
-                      <Truck className="mr-2 h-4 w-4" /> Cash on Delivery
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="credit-card" className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cardNumber" className="font-body">
-                        Card Number
-                      </Label>
-                      <Input
-                        id="cardNumber"
-                        name="cardNumber"
-                        value={formData.cardNumber}
-                        onChange={handleChange}
-                        placeholder="1234 5678 9012 3456"
-                        required={paymentMethod === "credit-card"}
-                        className="border-gold-700"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cardName" className="font-body">
-                        Name on Card
-                      </Label>
-                      <Input
-                        id="cardName"
-                        name="cardName"
-                        value={formData.cardName}
-                        onChange={handleChange}
-                        required={paymentMethod === "credit-card"}
-                        className="border-gold-700"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="expiryDate" className="font-body">
-                          Expiry Date
-                        </Label>
-                        <Input
-                          id="expiryDate"
-                          name="expiryDate"
-                          value={formData.expiryDate}
-                          onChange={handleChange}
-                          placeholder="MM/YY"
-                          required={paymentMethod === "credit-card"}
-                          className="border-gold-700"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="cvv" className="font-body">
-                          CVV
-                        </Label>
-                        <Input
-                          id="cvv"
-                          name="cvv"
-                          value={formData.cvv}
-                          onChange={handleChange}
-                          placeholder="123"
-                          required={paymentMethod === "credit-card"}
-                          className="border-gold-700"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center mt-4">
-                      <Shield className="h-5 w-5 text-gold-500 mr-2" />
-                      <p className="text-sm text-gray-500 font-body">
-                        Your payment information is secure and encrypted
-                      </p>
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="cash-on-delivery" className="mt-4">
-                    <div className="p-4 bg-black-300 rounded-md border border-gold-700">
-                      <p className="font-body text-gray-300">
-                        Pay with cash upon delivery. Please ensure you have the exact amount ready. Our delivery
-                        personnel will provide a receipt upon payment.
-                      </p>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cardNumber" className="font-body">
+                    Card Number
+                  </Label>
+                  <Input
+                    id="cardNumber"
+                    name="cardNumber"
+                    value={formData.cardNumber}
+                    onChange={handleChange}
+                    placeholder="1234 5678 9012 3456"
+                    required
+                    className="border-gold-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cardName" className="font-body">
+                    Name on Card
+                  </Label>
+                  <Input
+                    id="cardName"
+                    name="cardName"
+                    value={formData.cardName}
+                    onChange={handleChange}
+                    required
+                    className="border-gold-700"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="expiryDate" className="font-body">
+                      Expiry Date
+                    </Label>
+                    <Input
+                      id="expiryDate"
+                      name="expiryDate"
+                      value={formData.expiryDate}
+                      onChange={handleChange}
+                      placeholder="MM/YY"
+                      required
+                      className="border-gold-700"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cvv" className="font-body">
+                      CVV
+                    </Label>
+                    <Input
+                      id="cvv"
+                      name="cvv"
+                      value={formData.cvv}
+                      onChange={handleChange}
+                      placeholder="123"
+                      required
+                      className="border-gold-700"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center mt-4">
+                  <Shield className="h-5 w-5 text-gold-500 mr-2" />
+                  <p className="text-sm text-gray-500 font-body">Your payment information is secure and encrypted</p>
+                </div>
               </CardContent>
             </Card>
 

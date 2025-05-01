@@ -227,6 +227,59 @@ interface Inventory {
   updatedAt: Date
 }
 
+// Video Players Collection
+interface VideoPlayer {
+  id: string
+  name: string
+  sport: string
+  team: string
+  price: number
+  imageUrl: string
+  description: string
+  available: boolean
+  featured: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Video Requests Collection
+interface VideoRequest {
+  id: string
+  playerId: string
+  playerName: string
+  playerImage: string
+  userId: string
+  userEmail: string
+  userName: string
+  occasion: string
+  recipientName: string
+  message: string
+  requestedDeliveryDate: string
+  price: number
+  status: "pending_payment" | "paid" | "cancelled"
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Video Orders Collection
+interface VideoOrder {
+  id: string
+  userId: string
+  playerId: string
+  playerName: string
+  playerImage: string
+  recipientName: string
+  occasion: string
+  message: string
+  price: number
+  status: "pending" | "completed" | "rejected"
+  paymentStatus: "pending" | "paid" | "failed"
+  paymentMethod: "card"
+  createdAt: Date
+  completedAt?: Date
+  videoUrl?: string
+}
+
 // This is just a type definition file, not actual code to be executed
 export type {
   Product,
@@ -241,4 +294,7 @@ export type {
   Coupon,
   Review,
   Inventory,
+  VideoPlayer,
+  VideoRequest,
+  VideoOrder,
 }
