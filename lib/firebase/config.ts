@@ -1,10 +1,10 @@
 // Firebase configuration
 export const firebaseConfig = {
-  apiKey: "AIzaSyD1WQJcLKk6lVlaw4uAGgMqyTqT0NnGR6w",
-  authDomain: "goatgraphs-shirts.firebaseapp.com",
-  projectId: "goatgraphs-shirts",
-  storageBucket: "goatgraphs-shirts.appspot.com",
-  messagingSenderId: "609496295054",
-  appId: "1:609496295054:web:e5ba4913ded837a5f1cbdf",
-  measurementId: "G-VKW6K9WWL8",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "goatgraphs-shirts.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }

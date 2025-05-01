@@ -132,47 +132,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Redirect based on auth state and current path
   useEffect(() => {
     if (!isLoading) {
-      // Skip redirects for public pages
-      if (
-        pathname === "/" ||
-        pathname === "/shop" ||
-        pathname === "/authenticity" ||
-        pathname === "/about" ||
-        pathname === "/faq" ||
-        pathname === "/contact" ||
-        pathname === "/register" ||
-        pathname.startsWith("/product/")
-      ) {
+      // Public pages that don't require redirection
+      const publicPages = ["/login", "/register", "/shop", "/authenticity", "/about", "/faq", "/contact"]
+
+      // Check if current path is a product detail page
+      const isProductDetailPage = pathname.startsWith("/product/")
+
+      // If on root path ("/"), redirect based on auth status
+      if (pathname === "/") {
+        if (!user) {
+          router.push("/login")
+        } else if (user.role === "admin" || user.role === "superadmin") {
+          router.push("/admin")
+        } else {
+          router.push("/customer")
+        }
         return
       }
 
-      // If not logged in and not on login page, redirect to login
-      if (!user && pathname !== "/login" && pathname !== "/register") {
-        router.push("/login")
+      // Skip redirects for public pages and product detail pages
+      if (publicPages.includes(pathname) || isProductDetailPage) {
+        return
       }
 
-      // If logged in and on login page, redirect to appropriate section
+      // If not logged in and not on a public page, redirect to login
+      if (!user && !publicPages.includes(pathname)) {
+        router.push("/login")
+        return
+      }
+
+      // If logged in and on login/register page, redirect to appropriate section
       if (user && (pathname === "/login" || pathname === "/register")) {
         if (user.role === "admin" || user.role === "superadmin") {
           router.push("/admin")
         } else {
           router.push("/customer")
         }
+        return
       }
 
       // If admin user tries to access customer pages
-      if (
-        (user?.role === "admin" || user?.role === "superadmin") &&
-        pathname.startsWith("/customer") &&
-        pathname !== "/login" &&
-        pathname !== "/register"
-      ) {
+      if ((user?.role === "admin" || user?.role === "superadmin") && pathname.startsWith("/customer")) {
         router.push("/admin")
+        return
       }
 
       // If customer user tries to access admin pages
       if (user?.role === "customer" && pathname.startsWith("/admin")) {
         router.push("/customer")
+        return
       }
     }
   }, [user, isLoading, pathname, router])

@@ -2,33 +2,26 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Loader2 } from "lucide-react"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
-  requiredRole?: "admin" | "customer"
-  adminOnly?: boolean
+  requiredRole?: "admin" | "customer" | undefined
 }
 
-export default function ProtectedRoute({ children, requiredRole, adminOnly }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-  const [authorized, setAuthorized] = useState(false)
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!isLoading) {
       // If not logged in, redirect to login
       if (!user) {
         router.push("/login")
-        return
-      }
-
-      // If adminOnly is true and user is not admin, redirect
-      if (adminOnly && user.role !== "admin" && user.role !== "superadmin") {
-        router.push("/customer")
         return
       }
 
@@ -42,10 +35,16 @@ export default function ProtectedRoute({ children, requiredRole, adminOnly }: Pr
         return
       }
 
-      // User is authorized
-      setAuthorized(true)
+      // Special case for root path
+      if (pathname === "/") {
+        if (user.role === "admin" || user.role === "superadmin") {
+          router.push("/admin")
+        } else {
+          router.push("/customer")
+        }
+      }
     }
-  }, [user, isLoading, router, requiredRole, adminOnly])
+  }, [user, isLoading, router, requiredRole, pathname])
 
   if (isLoading) {
     return (
@@ -58,6 +57,13 @@ export default function ProtectedRoute({ children, requiredRole, adminOnly }: Pr
     )
   }
 
-  // Only render children if authorized
-  return authorized ? <>{children}</> : null
+  if (!user) {
+    return null // Will be redirected
+  }
+
+  if (requiredRole && user.role !== requiredRole) {
+    return null // Will be redirected
+  }
+
+  return <>{children}</>
 }

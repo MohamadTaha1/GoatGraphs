@@ -15,6 +15,8 @@ import {
   query,
   orderBy,
 } from "firebase/firestore"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getFirebaseApp } from "@/lib/firebase"
 
 export type Product = {
   id: string
@@ -36,6 +38,8 @@ export function useProducts() {
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     async function fetchProducts() {
       try {
         setLoading(true)
@@ -54,16 +58,24 @@ export function useProducts() {
           ...doc.data(),
         })) as Product[]
 
-        setProducts(productsData)
+        if (isMounted) {
+          setProducts(productsData)
+          setLoading(false)
+        }
       } catch (err) {
         console.error("Error fetching products:", err)
-        setError(err instanceof Error ? err : new Error("Failed to fetch products"))
-      } finally {
-        setLoading(false)
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error("Failed to fetch products"))
+          setLoading(false)
+        }
       }
     }
 
     fetchProducts()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   return { products, loading, error }
@@ -143,90 +155,76 @@ export async function deleteProduct(id: string): Promise<boolean> {
   }
 }
 
-// Function to add a new product with fallback to placeholder for development
+// Update the addProduct function with proper null checks
 export async function addProduct(
-  productData: Omit<Product, "id" | "imageUrl" | "createdAt">,
+  productData: Omit<Product, "id" | "createdAt" | "imageUrl" | "imagePath">,
   imageFile: File,
 ): Promise<string | null> {
-  console.log("Starting product addition process...")
-  console.log(`Product data:`, productData)
-  console.log(`Image file: ${imageFile.name}, size: ${(imageFile.size / 1024).toFixed(2)}KB, type: ${imageFile.type}`)
-
   try {
-    if (typeof window === "undefined") {
-      throw new Error("Cannot add product server-side")
-    }
+    if (typeof window === "undefined") return null
 
-    // Get Firestore instance
-    const db = getFirestoreInstance()
-    if (!db) {
-      throw new Error("Firestore instance is null")
-    }
-
-    // Generate a unique filename with timestamp
-    const timestamp = Date.now()
-    const safeFileName = imageFile.name.replace(/[^a-zA-Z0-9.]/g, "_")
-    const filename = `${timestamp}_${safeFileName}`
-    const imagePath = `products/${filename}`
-
-    console.log("Uploading image to path:", imagePath)
-
-    // Try to upload the image, but use a placeholder if it fails
-    let imageUrl: string
-    let usedPlaceholder = false
-
+    let db
     try {
-      // First, try to create a data URL from the image file as a fallback
-      const dataUrlPromise = new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = (e) => resolve(e.target?.result as string)
-        reader.readAsDataURL(imageFile)
-      })
-
-      // Race the upload against the data URL creation
-      const uploadPromise = uploadFile(imageFile, imagePath, 60000)
-
-      // Try the Firebase upload first, fall back to data URL if it fails
-      imageUrl = await uploadPromise
-      console.log("Image uploaded successfully to Firebase Storage")
-    } catch (uploadError) {
-      console.error("Error uploading image to Firebase Storage:", uploadError)
-
-      // Create a descriptive placeholder
-      const productTitle = encodeURIComponent(productData.title || "Product")
-      const playerName = encodeURIComponent(productData.signedBy || "Player")
-      const placeholderQuery = `${productTitle} signed by ${playerName}`
-
-      imageUrl = `/placeholder.svg?height=400&width=400&query=${placeholderQuery}`
-      usedPlaceholder = true
-      console.log("Using placeholder image:", imageUrl)
-
-      // Log detailed error information for troubleshooting
-      console.error("IMPORTANT: To fix this issue, visit /admin/diagnostics to run the Firebase Storage troubleshooter")
+      db = getFirestoreInstance()
+    } catch (err) {
+      console.error("Failed to get Firestore instance:", err)
+      return null
     }
 
-    // Prepare product data with image URL
+    if (!db) {
+      console.error("Firestore instance is null")
+      return null
+    }
+
+    // Upload image to Firebase Storage
+    let imageUrl = null
+    let imagePath = null
+
+    if (imageFile) {
+      try {
+        const timestamp = Date.now()
+        const safeFileName = imageFile.name ? imageFile.name.replace(/\s+/g, "_") : "image.jpg"
+        const filename = `${timestamp}_${safeFileName}`
+        imagePath = `products/${filename}`
+
+        // Use the updated storage bucket with proper error handling
+        const app = getFirebaseApp()
+        if (!app) {
+          throw new Error("Firebase app not initialized")
+        }
+
+        const storage = getStorage(app, "gs://goatgraphs-shirts.firebasestorage.app")
+        const storageRef = ref(storage, imagePath)
+
+        console.log("Starting upload to goatgraphs-shirts.firebasestorage.app...")
+
+        const uploadTask = uploadBytes(storageRef, imageFile)
+        const snapshot = await uploadTask
+
+        console.log("Upload completed successfully")
+
+        imageUrl = await getDownloadURL(snapshot.ref)
+        console.log("Image URL:", imageUrl)
+      } catch (uploadError) {
+        console.error("Error uploading image:", uploadError)
+        throw new Error(
+          `Failed to upload image: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`,
+        )
+      }
+    }
+
+    // Create product document in Firestore
     const newProductData = {
       ...productData,
-      imageUrl,
-      imagePath: usedPlaceholder ? null : imagePath,
+      imageUrl: imageUrl || "/diverse-products-still-life.png",
+      imagePath,
       createdAt: serverTimestamp(),
-      usesPlaceholder: usedPlaceholder,
     }
 
-    console.log("Adding product to Firestore:", newProductData)
-
-    // Add product to Firestore
-    try {
-      const docRef = await addDoc(collection(db, "products"), newProductData)
-      console.log("Product added successfully with ID:", docRef.id)
-      return docRef.id
-    } catch (firestoreError) {
-      console.error("Error adding product to Firestore:", firestoreError)
-      throw new Error(`Failed to add product to database: ${firestoreError.message}`)
-    }
+    const docRef = await addDoc(collection(db, "products"), newProductData)
+    return docRef.id
   } catch (error) {
-    console.error("Error in addProduct:", error)
-    throw error
+    console.error("Error adding product:", error)
+    return null
   }
 }

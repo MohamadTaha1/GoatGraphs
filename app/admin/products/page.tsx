@@ -8,39 +8,20 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, PlusCircle, Search, Edit, Trash2, MoreHorizontal, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, PlusCircle, Search, Edit, Trash2, Loader2 } from "lucide-react"
 import Link from "next/link"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { useProducts, deleteProduct } from "@/hooks/use-products"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { formatPrice } from "@/lib/utils"
 
 export default function ProductsPage() {
+  const router = useRouter()
   const { products: initialProducts, loading, error } = useProducts()
   const [products, setProducts] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [productToDelete, setProductToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const router = useRouter()
+  const [deletingProductId, setDeletingProductId] = useState(null)
 
   // Update local products state when initialProducts changes
   useEffect(() => {
@@ -52,19 +33,31 @@ export default function ProductsPage() {
   const productsPerPage = 8
 
   // Filter products based on search term
-  const filteredProducts = products.filter(
-    (product) =>
-      product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.signedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.type.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const filteredProducts = products.filter((product) => {
+    if (!product) return false
+
+    const title = product.title || ""
+    const signedBy = product.signedBy || ""
+    const type = product.type || ""
+
+    return (
+      title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      signedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      type.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
 
   const totalPages = Math.ceil(filteredProducts.length / productsPerPage)
 
-  const handleDeleteProduct = async (productId: string) => {
-    setIsDeleting(true)
+  const handleDeleteProduct = async (productId) => {
+    if (isDeleting) return // Prevent multiple clicks
+
     try {
+      setDeletingProductId(productId)
+      setIsDeleting(true)
+
       const success = await deleteProduct(productId)
+
       if (success) {
         // Update local state immediately
         setProducts((prevProducts) => prevProducts.filter((product) => product.id !== productId))
@@ -74,16 +67,8 @@ export default function ProductsPage() {
           description: "The product has been deleted successfully.",
         })
 
-        // Reset page to 1 if current page becomes empty
-        const newFilteredProducts = products
-          .filter((p) => p.id !== productId)
-          .filter(
-            (p) =>
-              p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              p.signedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              p.type.toLowerCase().includes(searchTerm.toLowerCase()),
-          )
-
+        // Reset page if needed
+        const newFilteredProducts = products.filter((p) => p.id !== productId)
         const newTotalPages = Math.ceil(newFilteredProducts.length / productsPerPage)
         if (currentPage > newTotalPages && newTotalPages > 0) {
           setCurrentPage(newTotalPages)
@@ -104,22 +89,11 @@ export default function ProductsPage() {
       })
     } finally {
       setIsDeleting(false)
-      setProductToDelete(null)
-      setIsDialogOpen(false)
+      setDeletingProductId(null)
     }
   }
 
-  const openDeleteDialog = (productId: string) => {
-    setProductToDelete(productId)
-    setIsDialogOpen(true)
-  }
-
-  const closeDeleteDialog = () => {
-    setProductToDelete(null)
-    setIsDialogOpen(false)
-  }
-
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp) => {
     if (!timestamp) return "N/A"
 
     try {
@@ -214,16 +188,16 @@ export default function ProductsPage() {
                           <div className="relative h-12 w-12 rounded-md overflow-hidden bg-jetblack">
                             <Image
                               src={product.imageUrl || "/placeholder.svg?height=48&width=48"}
-                              alt={product.title}
+                              alt={product.title || "Product"}
                               fill
                               className="object-cover"
                             />
                           </div>
                         </TableCell>
-                        <TableCell className="font-display text-offwhite">{product.title}</TableCell>
-                        <TableCell className="font-body text-offwhite">{product.signedBy}</TableCell>
-                        <TableCell className="font-body text-offwhite capitalize">{product.type}</TableCell>
-                        <TableCell className="font-body text-gold-warm">{formatPrice(product.price)}</TableCell>
+                        <TableCell className="font-display text-offwhite">{product.title || "Untitled"}</TableCell>
+                        <TableCell className="font-body text-offwhite">{product.signedBy || "Unknown"}</TableCell>
+                        <TableCell className="font-body text-offwhite capitalize">{product.type || "N/A"}</TableCell>
+                        <TableCell className="font-body text-gold-warm">{formatPrice(product.price || 0)}</TableCell>
                         <TableCell>
                           <Badge
                             className={`font-body ${
@@ -237,31 +211,36 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell className="font-body text-offwhite/70">{formatDate(product.createdAt)}</TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="hover:bg-gold/10 hover:text-gold">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-charcoal border-gold/30">
-                              <DropdownMenuLabel className="text-offwhite">Actions</DropdownMenuLabel>
-                              <DropdownMenuItem asChild className="text-offwhite hover:text-gold hover:bg-gold/10">
-                                <Link href={`/admin/products/edit/${product.id}`}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Edit
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-gold/20" />
-                              <DropdownMenuItem
-                                className="text-red-500 focus:text-red-500 hover:bg-red-500/10"
-                                onClick={() => openDeleteDialog(product.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex items-center justify-end space-x-2">
+                            <Button variant="ghost" size="icon" className="hover:bg-gold/10 hover:text-gold" asChild>
+                              <Link href={`/admin/products/edit/${product.id}`}>
+                                <Edit className="h-4 w-4" />
+                                <span className="sr-only">Edit</span>
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="hover:bg-red-500/10 hover:text-red-500"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    "Are you sure you want to delete this product? This action cannot be undone.",
+                                  )
+                                ) {
+                                  handleDeleteProduct(product.id)
+                                }
+                              }}
+                              disabled={isDeleting && deletingProductId === product.id}
+                            >
+                              {isDeleting && deletingProductId === product.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -311,39 +290,6 @@ export default function ProductsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <AlertDialogContent className="bg-charcoal border-gold/30">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-gold">Confirm Deletion</AlertDialogTitle>
-            <AlertDialogDescription className="text-offwhite/70">
-              Are you sure you want to delete this product? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              className="bg-transparent border-gold/30 text-offwhite hover:bg-gold/10 hover:text-gold"
-              onClick={closeDeleteDialog}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 text-white hover:bg-red-700"
-              onClick={() => productToDelete && handleDeleteProduct(productToDelete)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

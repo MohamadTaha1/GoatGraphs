@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { useAuctions } from "@/hooks/use-auctions"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -11,17 +10,97 @@ import Image from "next/image"
 import { AuctionCountdown } from "@/components/auction-countdown"
 import { BidModal } from "@/components/bid-modal"
 import { formatPrice } from "@/lib/utils"
+import { collection, getDocs, query, orderBy } from "firebase/firestore"
+import { getFirestoreInstance } from "@/lib/firebase/firestore"
 
 export default function AuctionPage() {
-  const { auctions, loading, error } = useAuctions()
+  const [auctions, setAuctions] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedAuction, setSelectedAuction] = useState<any>(null)
   const [showBidModal, setShowBidModal] = useState(false)
 
   const now = new Date()
 
-  const activeAuctions = auctions.filter((auction) => new Date(auction.endDate.toDate()) > now)
+  // Helper function to safely convert to Date
+  const getEndDate = (auction: any) => {
+    if (!auction || !auction.endTime) return null
 
-  const endedAuctions = auctions.filter((auction) => new Date(auction.endDate.toDate()) <= now)
+    try {
+      // Handle Firestore timestamp
+      if (auction.endTime.toDate && typeof auction.endTime.toDate === "function") {
+        return auction.endTime.toDate()
+      }
+      // Handle string date
+      else if (typeof auction.endTime === "string") {
+        return new Date(auction.endTime)
+      }
+      // Handle if it's already a Date object
+      else if (auction.endTime instanceof Date) {
+        return auction.endTime
+      }
+      return null
+    } catch (e) {
+      console.error("Error converting date:", e)
+      return null
+    }
+  }
+
+  // Fetch auctions directly instead of using the hook
+  useEffect(() => {
+    async function fetchAuctions() {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const db = getFirestoreInstance()
+        if (!db) {
+          throw new Error("Firestore instance is null")
+        }
+
+        console.log("Fetching auctions from Firestore")
+
+        const auctionsRef = collection(db, "auctions")
+        const q = query(auctionsRef, orderBy("createdAt", "desc"))
+        const querySnapshot = await getDocs(q)
+
+        console.log(`Found ${querySnapshot.docs.length} auctions`)
+
+        if (querySnapshot.empty) {
+          console.log("No auctions found in Firestore")
+          setAuctions([])
+        } else {
+          const auctionsData = querySnapshot.docs.map((doc) => {
+            const data = doc.data()
+            console.log(`Auction ${doc.id}:`, data)
+            return {
+              id: doc.id,
+              ...data,
+            }
+          })
+
+          setAuctions(auctionsData)
+        }
+      } catch (err) {
+        console.error("Error fetching auctions:", err)
+        setError("Failed to load auctions. Please try again.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAuctions()
+  }, [])
+
+  const activeAuctions = auctions.filter((auction) => {
+    const endDate = getEndDate(auction)
+    return endDate && endDate > now
+  })
+
+  const endedAuctions = auctions.filter((auction) => {
+    const endDate = getEndDate(auction)
+    return endDate && endDate <= now
+  })
 
   const handleBidClick = (auction: any) => {
     setSelectedAuction(auction)
@@ -70,7 +149,13 @@ export default function AuctionPage() {
           {activeAuctions.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {activeAuctions.map((auction) => (
-                <AuctionCard key={auction.id} auction={auction} onBidClick={handleBidClick} isActive={true} />
+                <AuctionCard
+                  key={auction.id}
+                  auction={auction}
+                  onBidClick={handleBidClick}
+                  isActive={true}
+                  getEndDate={getEndDate}
+                />
               ))}
             </div>
           ) : (
@@ -97,7 +182,13 @@ export default function AuctionPage() {
           {endedAuctions.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {endedAuctions.map((auction) => (
-                <AuctionCard key={auction.id} auction={auction} onBidClick={() => {}} isActive={false} />
+                <AuctionCard
+                  key={auction.id}
+                  auction={auction}
+                  onBidClick={() => {}}
+                  isActive={false}
+                  getEndDate={getEndDate}
+                />
               ))}
             </div>
           ) : (
@@ -129,34 +220,46 @@ function AuctionCard({
   auction,
   onBidClick,
   isActive,
-}: { auction: any; onBidClick: (auction: any) => void; isActive: boolean }) {
+  getEndDate,
+}: {
+  auction: any
+  onBidClick: (auction: any) => void
+  isActive: boolean
+  getEndDate: (auction: any) => Date | null
+}) {
+  const endDate = getEndDate(auction)
+
   return (
     <Card className="border-gold/30 bg-charcoal overflow-hidden hover:shadow-lg hover:shadow-gold/10 transition-all">
       <div className="relative h-48 w-full overflow-hidden">
         <Image
           src={auction.imageUrl || "/placeholder.svg?height=192&width=384&query=sports memorabilia"}
-          alt={auction.title}
+          alt={auction.title || "Auction item"}
           fill
           className="object-cover"
         />
-        {isActive && (
+        {isActive && endDate && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-jetblack to-transparent p-4">
-            <AuctionCountdown endDate={auction.endDate.toDate()} />
+            <AuctionCountdown endTime={endDate} />
           </div>
         )}
       </div>
       <CardContent className="p-6">
-        <h3 className="text-xl font-semibold text-offwhite mb-2">{auction.title}</h3>
-        <p className="text-offwhite/70 mb-4 line-clamp-2">{auction.description}</p>
+        <h3 className="text-xl font-semibold text-offwhite mb-2">
+          {auction.title || auction.playerName || "Untitled Auction"}
+        </h3>
+        <p className="text-offwhite/70 mb-4 line-clamp-2">{auction.description || "No description available"}</p>
 
         <div className="flex justify-between items-center mb-4">
           <div>
             <p className="text-sm text-offwhite/70">Current Bid</p>
-            <p className="text-xl font-semibold text-gold">${formatPrice(auction.currentBid)}</p>
+            <p className="text-xl font-semibold text-gold">${formatPrice(auction.currentBid || 0)}</p>
           </div>
           <div>
             <p className="text-sm text-offwhite/70">Bids</p>
-            <p className="text-xl font-semibold text-offwhite text-right">{auction.bids?.length || 0}</p>
+            <p className="text-xl font-semibold text-offwhite text-right">
+              {auction.bidHistory?.length || auction.bids?.length || 0}
+            </p>
           </div>
         </div>
 
@@ -168,8 +271,8 @@ function AuctionCard({
           <div className="bg-charcoal border border-gold/30 rounded-md p-3 text-center">
             <p className="text-sm text-offwhite/70">Auction Ended</p>
             <p className="text-offwhite font-medium">
-              {auction.bids && auction.bids.length > 0
-                ? "Sold for $" + formatPrice(auction.currentBid)
+              {auction.bidHistory?.length > 0 || auction.bids?.length > 0
+                ? "Sold for $" + formatPrice(auction.currentBid || 0)
                 : "No bids received"}
             </p>
           </div>

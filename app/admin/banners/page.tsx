@@ -1,22 +1,12 @@
 "use client"
 
-import { useState } from "react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlusCircle, Search, Edit, Trash2, MoreHorizontal, Loader2, Eye } from "lucide-react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, Plus, Pencil, Trash2, AlertCircle } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,235 +16,188 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/components/ui/use-toast"
+import { collection, getDocs, doc, deleteDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
-// Mock data for banners
-const BANNERS_DATA = [
-  {
-    id: "1",
-    title: "Summer Sale",
-    description: "Get up to 50% off on all signed jerseys",
-    imageUrl: "/placeholder.svg?height=200&width=600",
-    position: "home_hero",
-    active: true,
-    startDate: "2023-06-01",
-    endDate: "2023-08-31",
-  },
-  {
-    id: "2",
-    title: "New Arrivals",
-    description: "Check out our latest signed memorabilia",
-    imageUrl: "/placeholder.svg?height=200&width=600",
-    position: "shop_top",
-    active: true,
-    startDate: "2023-05-15",
-    endDate: "2023-12-31",
-  },
-  {
-    id: "3",
-    title: "Limited Edition",
-    description: "Exclusive signed items from the World Cup",
-    imageUrl: "/placeholder.svg?height=200&width=600",
-    position: "home_middle",
-    active: false,
-    startDate: "2023-07-01",
-    endDate: "2023-09-30",
-  },
-]
+interface Banner {
+  id: string
+  title: string
+  subtitle?: string
+  imageUrl: string
+  linkUrl?: string
+  position: string
+  active: boolean
+}
 
 export default function BannersPage() {
-  const [banners, setBanners] = useState(BANNERS_DATA)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [bannerToDelete, setBannerToDelete] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [banners, setBanners] = useState<Banner[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("all")
+  const { toast } = useToast()
 
-  // Filter banners based on search term
-  const filteredBanners = banners.filter(
-    (banner) =>
-      banner.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      banner.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      banner.position.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  // Fetch banners from Firestore
+  const fetchBanners = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const bannersCollection = collection(db, "banners")
+      const bannersSnapshot = await getDocs(bannersCollection)
+      const bannersList = bannersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Banner[]
 
-  const handleDeleteBanner = (bannerId: string) => {
-    setIsDeleting(true)
-    // Simulate API call
-    setTimeout(() => {
-      setBanners(banners.filter((banner) => banner.id !== bannerId))
-      setIsDeleting(false)
-      setBannerToDelete(null)
-      toast({
-        title: "Banner deleted",
-        description: "The banner has been deleted successfully.",
-      })
-    }, 1000)
+      setBanners(bannersList)
+    } catch (err) {
+      console.error("Error fetching banners:", err)
+      setError("Failed to load banners. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold mb-2 bg-gold-gradient bg-clip-text text-transparent">
-            Banners
-          </h1>
-          <p className="text-offwhite/70 font-body">Manage promotional banners across your website</p>
-        </div>
+  useEffect(() => {
+    fetchBanners()
+  }, [])
 
-        <Button asChild className="bg-gold-soft hover:bg-gold-deep text-jetblack">
+  // Delete banner
+  const handleDeleteBanner = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "banners", id))
+      toast({
+        title: "Banner deleted",
+        description: "The banner has been successfully deleted.",
+      })
+      fetchBanners() // Refresh the list
+    } catch (err) {
+      console.error("Error deleting banner:", err)
+      toast({
+        title: "Error",
+        description: "Failed to delete banner. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Filter banners based on active tab
+  const filteredBanners = banners.filter((banner) => {
+    if (activeTab === "all") return true
+    if (activeTab === "active") return banner.active
+    if (activeTab === "inactive") return !banner.active
+    return true
+  })
+
+  return (
+    <div className="container py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Banners</h1>
+        <Button asChild>
           <Link href="/admin/banners/add">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add New Banner
+            <Plus className="mr-2 h-4 w-4" /> Add New Banner
           </Link>
         </Button>
       </div>
 
-      <Card className="border-gold/30 bg-charcoal">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-gold font-display">Banner Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-offwhite/50" />
-              <Input
-                placeholder="Search banners..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 border-gold/30 bg-jetblack text-offwhite"
-              />
+      <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsTrigger value="all">All Banners</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="inactive">Inactive</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab}>
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Loading banners...</span>
             </div>
-          </div>
-
-          <div className="rounded-md border border-gold/30">
-            <Table>
-              <TableHeader>
-                <TableRow className="font-body border-gold/30 hover:bg-transparent">
-                  <TableHead className="text-offwhite">Image</TableHead>
-                  <TableHead className="text-offwhite">Title</TableHead>
-                  <TableHead className="text-offwhite">Position</TableHead>
-                  <TableHead className="text-offwhite">Date Range</TableHead>
-                  <TableHead className="text-offwhite">Status</TableHead>
-                  <TableHead className="text-right text-offwhite">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBanners.map((banner) => (
-                  <TableRow key={banner.id} className="border-gold/30 hover:bg-gold/5">
-                    <TableCell className="font-body">
-                      <div className="relative h-12 w-24 rounded-md overflow-hidden bg-jetblack">
-                        <Image
-                          src={banner.imageUrl || "/placeholder.svg"}
-                          alt={banner.title}
-                          fill
-                          className="object-cover"
-                        />
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 flex items-start">
+              <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+              <div>
+                <p className="font-medium">{error}</p>
+                <p className="text-sm">Please try refreshing the page.</p>
+              </div>
+            </div>
+          ) : filteredBanners.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-xl font-bold mb-2">No banners found</h3>
+              <p className="text-gray-500 mb-4">
+                {activeTab === "all"
+                  ? "You haven't created any banners yet."
+                  : activeTab === "active"
+                    ? "You don't have any active banners."
+                    : "You don't have any inactive banners."}
+              </p>
+              <Button asChild>
+                <Link href="/admin/banners/add">
+                  <Plus className="mr-2 h-4 w-4" /> Create your first banner
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredBanners.map((banner) => (
+                <Card key={banner.id} className="overflow-hidden">
+                  <div className="relative h-48 w-full">
+                    <Image
+                      src={banner.imageUrl || "/placeholder.svg?height=200&width=400&text=Banner+Image"}
+                      alt={banner.title}
+                      fill
+                      className="object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = "/placeholder.svg?height=200&width=400&text=Banner+Image"
+                      }}
+                    />
+                    <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs font-medium">
+                      {banner.position}
+                    </div>
+                    {!banner.active && (
+                      <div className="absolute top-2 left-2 bg-red-500 text-white rounded-full px-2 py-1 text-xs font-medium">
+                        Inactive
                       </div>
-                    </TableCell>
-                    <TableCell className="font-display text-offwhite">
-                      <div>
-                        <p className="font-bold">{banner.title}</p>
-                        <p className="text-xs text-offwhite/70 truncate max-w-[200px]">{banner.description}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-body text-offwhite capitalize">
-                      {banner.position.replace(/_/g, " ")}
-                    </TableCell>
-                    <TableCell className="font-body text-offwhite">
-                      <div className="text-sm">
-                        <p>From: {new Date(banner.startDate).toLocaleDateString()}</p>
-                        <p>To: {new Date(banner.endDate).toLocaleDateString()}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={`font-body ${
-                          banner.active
-                            ? "bg-green-500/20 text-green-500 hover:bg-green-500/30"
-                            : "bg-red-500/20 text-red-500 hover:bg-red-500/30"
-                        }`}
-                      >
-                        {banner.active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="hover:bg-gold/10 hover:text-gold">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
+                    )}
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-bold text-lg mb-1">{banner.title}</h3>
+                    {banner.subtitle && <p className="text-gray-500 text-sm mb-4">{banner.subtitle}</p>}
+                    <div className="flex justify-between items-center mt-4">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/admin/banners/edit/${banner.id}`}>
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
+                        </Link>
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <Trash2 className="h-4 w-4 mr-1" /> Delete
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-charcoal border-gold/30">
-                          <DropdownMenuLabel className="text-offwhite">Actions</DropdownMenuLabel>
-                          <DropdownMenuItem asChild className="text-offwhite hover:text-gold hover:bg-gold/10">
-                            <Link href={`/admin/banners/preview/${banner.id}`}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              Preview
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild className="text-offwhite hover:text-gold hover:bg-gold/10">
-                            <Link href={`/admin/banners/edit/${banner.id}`}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-gold/20" />
-                          <DropdownMenuItem
-                            className="text-red-500 focus:text-red-500 hover:bg-red-500/10"
-                            onClick={() => setBannerToDelete(banner.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-
-                {filteredBanners.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-offwhite">
-                      No banners found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!bannerToDelete} onOpenChange={(open) => !open && setBannerToDelete(null)}>
-        <AlertDialogContent className="bg-charcoal border-gold/30">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-gold">Confirm Deletion</AlertDialogTitle>
-            <AlertDialogDescription className="text-offwhite/70">
-              Are you sure you want to delete this banner? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent border-gold/30 text-offwhite hover:bg-gold/10 hover:text-gold">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 text-white hover:bg-red-700"
-              onClick={() => bannerToDelete && handleDeleteBanner(bannerToDelete)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete the banner.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteBanner(banner.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -12,7 +12,8 @@ export default function CustomerLayout({
     <ProtectedRoute requiredRole="customer">
       <div className="flex min-h-screen flex-col">
         <Header />
-        <main className="flex-1">{children}</main>
+        {/* Added pt-24 to create space below the fixed header */}
+        <main className="flex-1 pt-24">{children}</main>
         <Footer />
       </div>
     </ProtectedRoute>

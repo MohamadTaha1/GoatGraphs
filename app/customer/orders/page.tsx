@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { collection, getDocs } from "firebase/firestore"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -31,40 +31,69 @@ export default function CustomerOrdersPage() {
 
       try {
         const db = getFirestoreInstance()
-        const ordersRef = collection(db, "orders")
-
-        // First try to get orders without sorting to avoid index issues
-        const simpleQuery = query(ordersRef, where("userId", "==", user.uid))
-        const querySnapshot = await getDocs(simpleQuery)
-
-        // If we have results, sort them in memory
-        const ordersData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Order[]
-
-        // Sort by createdAt in descending order (newest first)
-        ordersData.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0)
-          const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0)
-          return dateB.getTime() - dateA.getTime()
-        })
-
-        setOrders(ordersData)
-      } catch (err: any) {
-        console.error("Error fetching orders:", err)
-
-        // Check if it's an index error
-        if (err.message && err.message.includes("index")) {
-          setIndexError(true)
-          // Extract the URL from the error message
-          const urlMatch = err.message.match(/https:\/\/console\.firebase\.google\.com[^\s]+/)
-          if (urlMatch) {
-            setIndexUrl(urlMatch[0])
-          }
-        } else {
-          setError("Failed to load orders. Please try again later.")
+        if (!db) {
+          console.error("Firestore instance is null")
+          setError("Database connection failed. Please try again later.")
+          setLoading(false)
+          return
         }
+
+        // Log for debugging
+        console.log("Fetching orders for user:", user.uid)
+
+        try {
+          // Get all orders first (without filtering by userId)
+          const ordersRef = collection(db, "orders")
+          const querySnapshot = await getDocs(ordersRef)
+
+          console.log(`Found ${querySnapshot.docs.length} total orders`)
+
+          // Filter orders client-side to match the current user
+          const ordersData = querySnapshot.docs
+            .map((doc) => {
+              const data = doc.data()
+              return {
+                id: doc.id,
+                ...data,
+                // Ensure createdAt is properly handled
+                createdAt: data.createdAt ? data.createdAt : new Date(),
+              }
+            })
+            .filter((order) => {
+              // Check if the order belongs to the current user
+              // Also log each order's userId for debugging
+              console.log(`Order ${order.id} userId: ${order.userId}, current user: ${user.uid}`)
+              return order.userId === user.uid
+            }) as Order[]
+
+          console.log(`After filtering, found ${ordersData.length} orders for user ${user.uid}`)
+
+          // Sort by createdAt in descending order (newest first)
+          ordersData.sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() ? a.createdAt.toDate() : new Date(a.createdAt || 0)
+            const dateB = b.createdAt?.toDate?.() ? b.createdAt.toDate() : new Date(b.createdAt || 0)
+            return dateB.getTime() - dateA.getTime()
+          })
+
+          setOrders(ordersData)
+        } catch (queryError) {
+          console.error("Error with Firestore query:", queryError)
+
+          // Check if it's an index error
+          if (queryError instanceof Error && queryError.message.includes("index")) {
+            setIndexError(true)
+            // Extract the URL from the error message
+            const urlMatch = queryError.message.match(/https:\/\/console\.firebase\.google\.com[^\s]+/)
+            if (urlMatch) {
+              setIndexUrl(urlMatch[0])
+            }
+          } else {
+            setError("Failed to load orders. Please try again later.")
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching orders:", err)
+        setError("An unexpected error occurred. Please try again later.")
       } finally {
         setLoading(false)
       }
@@ -255,21 +284,35 @@ function OrderCard({ order }: { order: Order }) {
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "N/A"
 
-    // Handle Firestore timestamp
-    if (timestamp.toDate) {
-      return new Date(timestamp.toDate()).toLocaleDateString("en-US", {
+    try {
+      // Handle Firestore timestamp
+      if (timestamp && typeof timestamp.toDate === "function") {
+        return new Date(timestamp.toDate()).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      }
+
+      // Handle Date objects
+      if (timestamp instanceof Date) {
+        return timestamp.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      }
+
+      // Handle ISO strings or timestamps
+      return new Date(timestamp).toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
       })
+    } catch (error) {
+      console.error("Error formatting date:", error, timestamp)
+      return "Invalid Date"
     }
-
-    // Handle regular Date objects or ISO strings
-    return new Date(timestamp).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
   }
 
   return (

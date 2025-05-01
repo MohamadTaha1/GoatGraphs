@@ -1,142 +1,82 @@
-"use client"
+// Update the diagnostics to check for the correct storage bucket
 
-import { getFirebaseApp } from "./app"
-import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage"
+import { getApp } from "firebase/app"
+import { getStorage, ref, getMetadata } from "firebase/storage"
 
-interface DiagnosticResult {
-  success: boolean
-  message: string
-  details?: string
+function getFirebaseApp() {
+  try {
+    return getApp()
+  } catch (e: any) {
+    return null
+  }
 }
 
-export async function testFirebaseStorage(): Promise<DiagnosticResult> {
+export async function checkFirebaseStorage(): Promise<{
+  success: boolean
+  message: string
+  details?: any
+}> {
   try {
-    console.log("Starting Firebase Storage diagnostic test...")
-
-    // Step 1: Check if Firebase is initialized
-    const app = getFirebaseApp()
-    console.log("Firebase app initialized:", app.name)
-
-    // Step 2: Check Storage initialization
-    const storage = getStorage(app)
-    console.log("Firebase Storage initialized")
-
-    // Step 3: Check project ID and bucket
-    const projectId = app.options.projectId
-    const storageBucket = app.options.storageBucket
-    console.log(`Project ID: ${projectId || "unknown"}`)
-    console.log(`Storage Bucket: ${storageBucket || "default"}`)
-
-    if (!storageBucket) {
+    if (typeof window === "undefined") {
       return {
         success: false,
-        message: "Storage bucket not configured",
-        details: "Your Firebase configuration is missing the storageBucket parameter. Check your Firebase config.",
+        message: "Firebase Storage check can only run in browser environment",
       }
     }
 
-    // Step 4: Test a minimal upload (text only to avoid CORS for binary data)
-    console.log("Testing minimal upload...")
-    const testRef = ref(storage, `diagnostics/test-${Date.now()}.txt`)
-
-    try {
-      const snapshot = await uploadString(testRef, "Test upload from diagnostic tool")
-      console.log("Test upload successful")
-
-      // Step 5: Test download URL generation
-      const url = await getDownloadURL(testRef)
-      console.log("Download URL generated successfully:", url)
-
+    const app = getFirebaseApp()
+    if (!app) {
       return {
-        success: true,
-        message: "Firebase Storage is working correctly",
-        details: `Successfully uploaded test file and generated download URL: ${url}`,
+        success: false,
+        message: "Firebase app not initialized",
       }
-    } catch (uploadError) {
-      console.error("Test upload failed:", uploadError)
+    }
 
-      // Check for specific error codes
-      if (uploadError.code) {
-        switch (uploadError.code) {
-          case "storage/unauthorized":
-            return {
-              success: false,
-              message: "Firebase Storage Rules are blocking uploads",
-              details: `Your Firebase Storage security rules are preventing uploads. Update your rules to allow writes to the 'products' path.
-              
-Example rules:
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /products/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    match /diagnostics/{fileName} {
-      allow read, write: if true;
-    }
-  }
-}`,
-            }
-          case "storage/quota-exceeded":
-            return {
-              success: false,
-              message: "Storage quota exceeded",
-              details:
-                "Your Firebase project has exceeded its storage quota. Upgrade your plan or delete unused files.",
-            }
-          default:
-            return {
-              success: false,
-              message: `Firebase Storage error: ${uploadError.code}`,
-              details: uploadError.message,
-            }
+    // Initialize Storage with the correct bucket
+    const storage = getStorage(app, "gs://goatgraphs-shirts.firebasestorage.app")
+
+    // Check if we can access the bucket
+    const testRef = ref(storage, "test.txt")
+
+    // Try to get metadata (this will fail if permissions are wrong, but that's okay for testing connection)
+    try {
+      await getMetadata(testRef)
+    } catch (error) {
+      // We expect this to fail with "object not found" which means connection works
+      if (error.code === "storage/object-not-found") {
+        return {
+          success: true,
+          message: "Firebase Storage connection successful",
+          details: {
+            bucket: "goatgraphs-shirts.firebasestorage.app",
+            testPath: "test.txt",
+          },
         }
       }
 
+      // If it's a different error, we should report it
       return {
         success: false,
-        message: "Firebase Storage upload failed",
-        details: uploadError.message,
+        message: `Firebase Storage error: ${error.message}`,
+        details: {
+          code: error.code,
+          bucket: "goatgraphs-shirts.firebasestorage.app",
+        },
       }
     }
-  } catch (error) {
-    console.error("Firebase diagnostic test failed:", error)
-    return {
-      success: false,
-      message: "Firebase configuration error",
-      details: error.message,
-    }
-  }
-}
 
-export async function checkCORSConfiguration(): Promise<DiagnosticResult> {
-  try {
-    const response = await fetch("https://www.googleapis.com/storage/v1/b/YOUR_BUCKET_NAME/o", {
-      method: "OPTIONS",
-      headers: {
-        Origin: window.location.origin,
-        "Access-Control-Request-Method": "POST",
+    return {
+      success: true,
+      message: "Firebase Storage connection successful",
+      details: {
+        bucket: "goatgraphs-shirts.firebasestorage.app",
       },
-    })
-
-    if (response.ok || response.status === 204) {
-      return {
-        success: true,
-        message: "CORS is properly configured",
-        details: "Your Firebase Storage bucket is correctly configured for CORS from this domain.",
-      }
-    } else {
-      return {
-        success: false,
-        message: "CORS is not properly configured",
-        details: `Your Firebase Storage bucket is not configured to allow uploads from ${window.location.origin}. Follow the CORS configuration instructions below.`,
-      }
     }
   } catch (error) {
     return {
       success: false,
-      message: "Could not check CORS configuration",
-      details: error.message,
+      message: `Firebase Storage check failed: ${error.message}`,
+      details: error,
     }
   }
 }

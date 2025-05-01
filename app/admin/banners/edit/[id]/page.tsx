@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,23 +13,67 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { collection, addDoc } from "firebase/firestore"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "@/lib/firebase"
 
-export default function AddBannerPage() {
+interface BannerData {
+  title: string
+  subtitle?: string
+  imageUrl: string
+  linkUrl?: string
+  position: string
+  active: boolean
+}
+
+export default function EditBannerPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
+  const [fetchLoading, setFetchLoading] = useState(true)
+  const [formData, setFormData] = useState<BannerData>({
     title: "",
     subtitle: "",
+    imageUrl: "",
     linkUrl: "",
     position: "hero",
     active: true,
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+
+  // Fetch banner data
+  useEffect(() => {
+    const fetchBanner = async () => {
+      try {
+        const bannerDoc = await getDoc(doc(db, "banners", params.id))
+
+        if (bannerDoc.exists()) {
+          const bannerData = bannerDoc.data() as BannerData
+          setFormData(bannerData)
+          setImagePreview(bannerData.imageUrl)
+        } else {
+          toast({
+            title: "Banner not found",
+            description: "The requested banner could not be found.",
+            variant: "destructive",
+          })
+          router.push("/admin/banners")
+        }
+      } catch (error) {
+        console.error("Error fetching banner:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load banner data. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setFetchLoading(false)
+      }
+    }
+
+    fetchBanner()
+  }, [params.id, router, toast])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -60,49 +104,49 @@ export default function AddBannerPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!imageFile) {
-      toast({
-        title: "Image required",
-        description: "Please select an image for the banner.",
-        variant: "destructive",
-      })
-      return
-    }
-
     setLoading(true)
 
     try {
-      // 1. Upload image to Firebase Storage
-      const storageRef = ref(storage, `banners/${Date.now()}_${imageFile.name}`)
-      const uploadResult = await uploadBytes(storageRef, imageFile)
-      const imageUrl = await getDownloadURL(uploadResult.ref)
+      const updatedData = { ...formData }
 
-      // 2. Save banner data to Firestore
-      const bannerData = {
-        ...formData,
-        imageUrl,
-        createdAt: new Date().toISOString(),
+      // If a new image was selected, upload it
+      if (imageFile) {
+        const storageRef = ref(storage, `banners/${Date.now()}_${imageFile.name}`)
+        const uploadResult = await uploadBytes(storageRef, imageFile)
+        updatedData.imageUrl = await getDownloadURL(uploadResult.ref)
       }
 
-      await addDoc(collection(db, "banners"), bannerData)
+      // Update banner in Firestore
+      await updateDoc(doc(db, "banners", params.id), {
+        ...updatedData,
+        updatedAt: new Date().toISOString(),
+      })
 
       toast({
-        title: "Banner created",
-        description: "The banner has been successfully created.",
+        title: "Banner updated",
+        description: "The banner has been successfully updated.",
       })
 
       router.push("/admin/banners")
     } catch (error) {
-      console.error("Error creating banner:", error)
+      console.error("Error updating banner:", error)
       toast({
         title: "Error",
-        description: "Failed to create banner. Please try again.",
+        description: "Failed to update banner. Please try again.",
         variant: "destructive",
       })
     } finally {
       setLoading(false)
     }
+  }
+
+  if (fetchLoading) {
+    return (
+      <div className="container py-8 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading banner data...</span>
+      </div>
+    )
   }
 
   return (
@@ -113,7 +157,7 @@ export default function AddBannerPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Add New Banner</CardTitle>
+          <CardTitle>Edit Banner</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -129,7 +173,7 @@ export default function AddBannerPage() {
                   <Textarea
                     id="subtitle"
                     name="subtitle"
-                    value={formData.subtitle}
+                    value={formData.subtitle || ""}
                     onChange={handleInputChange}
                     rows={3}
                   />
@@ -140,7 +184,7 @@ export default function AddBannerPage() {
                   <Input
                     id="linkUrl"
                     name="linkUrl"
-                    value={formData.linkUrl}
+                    value={formData.linkUrl || ""}
                     onChange={handleInputChange}
                     placeholder="https://"
                   />
@@ -169,14 +213,14 @@ export default function AddBannerPage() {
 
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="image">Banner Image</Label>
-                  <Input id="image" type="file" accept="image/*" onChange={handleImageChange} required />
+                  <Label htmlFor="image">Banner Image (Leave empty to keep current image)</Label>
+                  <Input id="image" type="file" accept="image/*" onChange={handleImageChange} />
                   <p className="text-sm text-gray-500 mt-1">Recommended size: 1200x400px (3:1 ratio)</p>
                 </div>
 
                 {imagePreview && (
                   <div className="mt-4">
-                    <Label>Preview</Label>
+                    <Label>Current Image</Label>
                     <div className="mt-2 relative h-40 w-full overflow-hidden rounded-md border">
                       <img
                         src={imagePreview || "/placeholder.svg?height=160&width=320&text=Preview"}
@@ -195,7 +239,7 @@ export default function AddBannerPage() {
             <div className="flex justify-end">
               <Button type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {loading ? "Creating..." : "Create Banner"}
+                {loading ? "Updating..." : "Update Banner"}
               </Button>
             </div>
           </form>

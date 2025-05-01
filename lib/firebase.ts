@@ -2,58 +2,61 @@
 
 import { initializeApp, getApps, getApp } from "firebase/app"
 import { getFirestore, type Firestore } from "firebase/firestore"
-import { getStorage, type FirebaseStorage } from "firebase/storage"
 import { getAuth, type Auth } from "firebase/auth"
-import { getAnalytics, isSupported } from "firebase/analytics"
-import { firebaseConfig } from "./firebase/config"
+import { getStorage, type FirebaseStorage } from "firebase/storage"
 
-// Initialize Firebase
-let app: any = null
-let db: Firestore | undefined = undefined
-let auth: Auth | undefined = undefined
-let storage: FirebaseStorage | undefined = undefined
-let analytics: any = null
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "goatgraphs-shirts.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+}
 
-// Only initialize Firebase if we're in the browser
-if (typeof window !== "undefined") {
-  try {
-    if (getApps().length === 0) {
-      app = initializeApp(firebaseConfig)
-    } else {
-      app = getApp()
-    }
+// Initialize Firebase app
+const firebaseApp =
+  typeof window !== "undefined" ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()) : null
 
-    // Initialize Firestore
-    db = getFirestore(app)
+// Initialize services
+export const db = typeof window !== "undefined" ? getFirestore(firebaseApp) : null
+export const auth = typeof window !== "undefined" ? getAuth(firebaseApp) : null
+export const storage = typeof window !== "undefined" ? getStorage(firebaseApp) : null
 
-    // Initialize Auth
-    auth = getAuth(app)
+// Keep the existing functions for backward compatibility
+let dbInstance: Firestore | undefined
+let authInstance: Auth | undefined
+let storageInstance: FirebaseStorage | undefined
 
-    // Initialize Storage
-    storage = getStorage(app)
-
-    // Initialize Analytics conditionally
-    isSupported().then((yes) => yes && (analytics = getAnalytics(app)))
-
-    console.log("Firebase services initialized successfully")
-    console.log(`Using storage bucket: ${firebaseConfig.storageBucket}`)
-  } catch (error) {
-    console.error("Error initializing Firebase:", error)
+export function getFirebaseApp() {
+  if (typeof window === "undefined") {
+    console.warn("Firebase app cannot be initialized on the server side")
+    return null
   }
+
+  return firebaseApp
 }
 
 // Export a function to get Firestore that ensures it's only called client-side
-export function getFirestoreInstance(): Firestore {
+export function getFirestoreInstance() {
   if (typeof window === "undefined") {
     throw new Error("Firestore can only be accessed in the browser")
   }
 
-  if (!db) {
+  if (!dbInstance) {
     try {
-      if (!app) {
-        throw new Error("Firebase app is not initialized")
+      if (!firebaseApp) {
+        console.error("Firebase app is not initialized")
+        return null
       }
-      db = getFirestore(app)
+
+      dbInstance = db as Firestore
+
+      if (!dbInstance) {
+        console.error("Firestore failed to initialize")
+        return null
+      }
+
       console.log("Firestore instance created successfully")
     } catch (error) {
       console.error("Error getting Firestore instance:", error)
@@ -61,51 +64,57 @@ export function getFirestoreInstance(): Firestore {
     }
   }
 
-  return db
+  return dbInstance
 }
 
-// Export a function to get Storage that ensures it's only called client-side
-export function getStorageInstance(): FirebaseStorage {
-  if (typeof window === "undefined") {
-    throw new Error("Firebase Storage can only be accessed in the browser")
-  }
-
-  if (!storage) {
-    try {
-      if (!app) {
-        throw new Error("Firebase app is not initialized")
-      }
-      storage = getStorage(app)
-      console.log("Storage instance created successfully")
-    } catch (error) {
-      console.error("Error getting Storage instance:", error)
-      throw new Error("Failed to get Storage instance")
-    }
-  }
-
-  return storage
-}
-
-// Export a function to get Auth that ensures it's only called client-side
-export function getAuthInstance(): Auth {
+// Initialize and export Firebase Auth
+export function getAuthInstance() {
   if (typeof window === "undefined") {
     throw new Error("Firebase Auth can only be accessed in the browser")
   }
 
-  if (!auth) {
+  if (!authInstance) {
     try {
-      if (!app) {
-        throw new Error("Firebase app is not initialized")
+      if (!firebaseApp) {
+        console.error("Firebase app is not initialized")
+        return null
       }
-      auth = getAuth(app)
-      console.log("Auth instance created successfully")
+
+      authInstance = auth as Auth
+
+      if (!authInstance) {
+        console.error("Auth failed to initialize")
+        return null
+      }
     } catch (error) {
-      console.error("Error getting Auth instance:", error)
-      throw new Error("Failed to get Auth instance")
+      console.error("Error initializing Firebase Auth:", error)
+      return undefined
     }
   }
 
-  return auth
+  return authInstance
 }
 
-export { app, db, auth, storage, analytics }
+export function getStorageInstance() {
+  if (!storageInstance) {
+    try {
+      if (!firebaseApp) {
+        console.error("Firebase app is not initialized")
+        return null
+      }
+
+      storageInstance = storage as FirebaseStorage
+
+      if (!storageInstance) {
+        console.error("Storage failed to initialize")
+        return null
+      }
+      console.log("Firebase Storage instance created successfully")
+    } catch (error) {
+      console.error("Error initializing Firebase Storage:", error)
+      return null
+    }
+  }
+
+  return storageInstance
+}

@@ -13,8 +13,11 @@ export function getStorageInstance() {
       return null
     }
 
-    storageInstance = getStorage(app)
-    console.log("Using storage bucket:", storageInstance.bucket || "default")
+    // Create storage instance with the bucket URL
+    storageInstance = getStorage(app, "gs://goatgraphs-shirts.firebasestorage.app")
+
+    // Use optional chaining to prevent undefined errors
+    console.log("Using storage bucket:", storageInstance?.bucket || "goatgraphs-shirts.firebasestorage.app")
     return storageInstance
   } catch (error) {
     console.error("Error initializing Firebase Storage:", error)
