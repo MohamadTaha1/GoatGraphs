@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -33,12 +33,21 @@ import {
 import { formatPrice } from "@/lib/utils"
 
 export default function ProductsPage() {
-  const { products, loading, error } = useProducts()
+  const { products: initialProducts, loading, error } = useProducts()
+  const [products, setProducts] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const router = useRouter()
+
+  // Update local products state when initialProducts changes
+  useEffect(() => {
+    if (initialProducts) {
+      setProducts(initialProducts)
+    }
+  }, [initialProducts])
 
   const productsPerPage = 8
 
@@ -57,12 +66,28 @@ export default function ProductsPage() {
     try {
       const success = await deleteProduct(productId)
       if (success) {
+        // Update local state immediately
+        setProducts((prevProducts) => prevProducts.filter((product) => product.id !== productId))
+
         toast({
           title: "Product deleted",
           description: "The product has been deleted successfully.",
         })
-        // Force refresh the page to update the product list
-        router.refresh()
+
+        // Reset page to 1 if current page becomes empty
+        const newFilteredProducts = products
+          .filter((p) => p.id !== productId)
+          .filter(
+            (p) =>
+              p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              p.signedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              p.type.toLowerCase().includes(searchTerm.toLowerCase()),
+          )
+
+        const newTotalPages = Math.ceil(newFilteredProducts.length / productsPerPage)
+        if (currentPage > newTotalPages && newTotalPages > 0) {
+          setCurrentPage(newTotalPages)
+        }
       } else {
         toast({
           title: "Error",
@@ -80,7 +105,18 @@ export default function ProductsPage() {
     } finally {
       setIsDeleting(false)
       setProductToDelete(null)
+      setIsDialogOpen(false)
     }
+  }
+
+  const openDeleteDialog = (productId: string) => {
+    setProductToDelete(productId)
+    setIsDialogOpen(true)
+  }
+
+  const closeDeleteDialog = () => {
+    setProductToDelete(null)
+    setIsDialogOpen(false)
   }
 
   const formatDate = (timestamp: any) => {
@@ -219,7 +255,7 @@ export default function ProductsPage() {
                               <DropdownMenuSeparator className="bg-gold/20" />
                               <DropdownMenuItem
                                 className="text-red-500 focus:text-red-500 hover:bg-red-500/10"
-                                onClick={() => setProductToDelete(product.id)}
+                                onClick={() => openDeleteDialog(product.id)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete
@@ -277,7 +313,7 @@ export default function ProductsPage() {
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <AlertDialogContent className="bg-charcoal border-gold/30">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-gold">Confirm Deletion</AlertDialogTitle>
@@ -286,7 +322,10 @@ export default function ProductsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent border-gold/30 text-offwhite hover:bg-gold/10 hover:text-gold">
+            <AlertDialogCancel
+              className="bg-transparent border-gold/30 text-offwhite hover:bg-gold/10 hover:text-gold"
+              onClick={closeDeleteDialog}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

@@ -56,19 +56,21 @@ export default function AdminDashboard() {
   const { user } = useAuth()
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="p-4 md:p-6">
+      <div className="mb-6">
         <h1 className="text-3xl font-display font-bold mb-2 bg-gold-gradient bg-clip-text text-transparent">
           Admin Dashboard
         </h1>
         <p className="text-offwhite/70 font-body">Welcome back, {user?.email}</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-gold/30 bg-charcoal">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <Card className="border-gold/30 bg-charcoal shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-offwhite">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-gold" />
+            <div className="rounded-full bg-gold/20 p-2">
+              <DollarSign className="h-4 w-4 text-gold" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gold">$45,231.89</div>
@@ -80,10 +82,12 @@ export default function AdminDashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-gold/30 bg-charcoal">
+        <Card className="border-gold/30 bg-charcoal shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-offwhite">New Customers</CardTitle>
-            <Users className="h-4 w-4 text-gold" />
+            <div className="rounded-full bg-gold/20 p-2">
+              <Users className="h-4 w-4 text-gold" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gold">+12</div>
@@ -95,10 +99,12 @@ export default function AdminDashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-gold/30 bg-charcoal">
+        <Card className="border-gold/30 bg-charcoal shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-offwhite">Total Orders</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-gold" />
+            <div className="rounded-full bg-gold/20 p-2">
+              <ShoppingBag className="h-4 w-4 text-gold" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gold">+28</div>
@@ -110,10 +116,12 @@ export default function AdminDashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-gold/30 bg-charcoal">
+        <Card className="border-gold/30 bg-charcoal shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-offwhite">Inventory Value</CardTitle>
-            <Package className="h-4 w-4 text-gold" />
+            <div className="rounded-full bg-gold/20 p-2">
+              <Package className="h-4 w-4 text-gold" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gold">$98,532.00</div>
@@ -127,28 +135,38 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="bg-charcoal border border-gold/30">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-gold-soft data-[state=active]:text-jetblack">
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="bg-charcoal border border-gold/30 p-1">
+          <TabsTrigger
+            value="overview"
+            className="data-[state=active]:bg-gold-soft data-[state=active]:text-jetblack rounded-md px-4 py-2"
+          >
             Overview
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-gold-soft data-[state=active]:text-jetblack">
+          <TabsTrigger
+            value="analytics"
+            className="data-[state=active]:bg-gold-soft data-[state=active]:text-jetblack rounded-md px-4 py-2"
+          >
             Analytics
           </TabsTrigger>
-          <TabsTrigger value="reports" className="data-[state=active]:bg-gold-soft data-[state=active]:text-jetblack">
+          <TabsTrigger
+            value="reports"
+            className="data-[state=active]:bg-gold-soft data-[state=active]:text-jetblack rounded-md px-4 py-2"
+          >
             Reports
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="border-gold/30 bg-charcoal col-span-4">
-              <CardHeader>
-                <CardTitle className="text-gold font-display">Monthly Revenue</CardTitle>
+
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="border-gold/30 bg-charcoal shadow-lg lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-gold font-display text-lg">Monthly Revenue</CardTitle>
                 <CardDescription className="text-offwhite/70">Sales performance over time</CardDescription>
               </CardHeader>
-              <CardContent className="pl-2">
+              <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={salesData}>
+                  <BarChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="name" stroke="#999" />
                     <YAxis stroke="#999" />
@@ -161,9 +179,10 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            <Card className="border-gold/30 bg-charcoal col-span-3">
-              <CardHeader>
-                <CardTitle className="text-gold font-display">Top Products</CardTitle>
+
+            <Card className="border-gold/30 bg-charcoal shadow-lg">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-gold font-display text-lg">Top Products</CardTitle>
                 <CardDescription className="text-offwhite/70">Best selling items</CardDescription>
               </CardHeader>
               <CardContent>
@@ -177,7 +196,7 @@ export default function AdminDashboard() {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
                       {topProductsData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -187,20 +206,21 @@ export default function AdminDashboard() {
                       contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
                       labelStyle={{ color: "#FFD700" }}
                     />
-                    <Legend />
+                    <Legend layout="vertical" verticalAlign="middle" align="right" />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="border-gold/30 bg-charcoal col-span-3">
-              <CardHeader>
-                <CardTitle className="text-gold font-display">Order Status</CardTitle>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="border-gold/30 bg-charcoal shadow-lg">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-gold font-display text-lg">Order Status</CardTitle>
                 <CardDescription className="text-offwhite/70">Current order distribution</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
                       data={orderStatusData}
@@ -210,7 +230,7 @@ export default function AdminDashboard() {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
                       {orderStatusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -220,19 +240,20 @@ export default function AdminDashboard() {
                       contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
                       labelStyle={{ color: "#FFD700" }}
                     />
-                    <Legend />
+                    <Legend layout="vertical" verticalAlign="middle" align="right" />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            <Card className="border-gold/30 bg-charcoal col-span-4">
-              <CardHeader>
-                <CardTitle className="text-gold font-display">Recent Activity</CardTitle>
+
+            <Card className="border-gold/30 bg-charcoal shadow-lg lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-gold font-display text-lg">Recent Activity</CardTitle>
                 <CardDescription className="text-offwhite/70">Latest system events</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center">
+                  <div className="flex items-center bg-charcoal/50 p-3 rounded-lg">
                     <div className="mr-4 rounded-full bg-gold/20 p-2">
                       <ShoppingBag className="h-4 w-4 text-gold" />
                     </div>
@@ -242,7 +263,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-xs text-offwhite/50">2 hours ago</div>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center bg-charcoal/50 p-3 rounded-lg">
                     <div className="mr-4 rounded-full bg-gold/20 p-2">
                       <Users className="h-4 w-4 text-gold" />
                     </div>
@@ -252,7 +273,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-xs text-offwhite/50">5 hours ago</div>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center bg-charcoal/50 p-3 rounded-lg">
                     <div className="mr-4 rounded-full bg-gold/20 p-2">
                       <Package className="h-4 w-4 text-gold" />
                     </div>
@@ -262,7 +283,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-xs text-offwhite/50">1 day ago</div>
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center bg-charcoal/50 p-3 rounded-lg">
                     <div className="mr-4 rounded-full bg-gold/20 p-2">
                       <TrendingUp className="h-4 w-4 text-gold" />
                     </div>
@@ -277,15 +298,16 @@ export default function AdminDashboard() {
             </Card>
           </div>
         </TabsContent>
-        <TabsContent value="analytics" className="space-y-4">
-          <Card className="border-gold/30 bg-charcoal">
-            <CardHeader>
-              <CardTitle className="text-gold font-display">Sales Analytics</CardTitle>
+
+        <TabsContent value="analytics" className="space-y-6 mt-6">
+          <Card className="border-gold/30 bg-charcoal shadow-lg">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-gold font-display text-lg">Sales Analytics</CardTitle>
               <CardDescription className="text-offwhite/70">Detailed sales performance</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={salesData}>
+                <LineChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="name" stroke="#999" />
                   <YAxis stroke="#999" />
@@ -300,47 +322,40 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="reports" className="space-y-4">
-          <Card className="border-gold/30 bg-charcoal">
-            <CardHeader>
-              <CardTitle className="text-gold font-display">Reports</CardTitle>
+
+        <TabsContent value="reports" className="space-y-6 mt-6">
+          <Card className="border-gold/30 bg-charcoal shadow-lg">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-gold font-display text-lg">Reports</CardTitle>
               <CardDescription className="text-offwhite/70">Download business reports</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-gold/20 pb-4">
-                  <div>
-                    <h3 className="font-display text-offwhite">Monthly Sales Report</h3>
-                    <p className="text-sm text-offwhite/70">Detailed breakdown of sales by product and category</p>
-                  </div>
-                  <button className="rounded-md bg-gold-soft px-3 py-1 text-sm font-semibold text-jetblack hover:bg-gold-deep">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
+                  <h3 className="font-display text-offwhite mb-2">Monthly Sales Report</h3>
+                  <p className="text-sm text-offwhite/70 mb-4">Detailed breakdown of sales by product and category</p>
+                  <button className="w-full rounded-md bg-gold-soft py-2 text-sm font-semibold text-jetblack hover:bg-gold-deep transition-colors">
                     Download
                   </button>
                 </div>
-                <div className="flex items-center justify-between border-b border-gold/20 pb-4">
-                  <div>
-                    <h3 className="font-display text-offwhite">Customer Analytics</h3>
-                    <p className="text-sm text-offwhite/70">Customer demographics and purchasing patterns</p>
-                  </div>
-                  <button className="rounded-md bg-gold-soft px-3 py-1 text-sm font-semibold text-jetblack hover:bg-gold-deep">
+                <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
+                  <h3 className="font-display text-offwhite mb-2">Customer Analytics</h3>
+                  <p className="text-sm text-offwhite/70 mb-4">Customer demographics and purchasing patterns</p>
+                  <button className="w-full rounded-md bg-gold-soft py-2 text-sm font-semibold text-jetblack hover:bg-gold-deep transition-colors">
                     Download
                   </button>
                 </div>
-                <div className="flex items-center justify-between border-b border-gold/20 pb-4">
-                  <div>
-                    <h3 className="font-display text-offwhite">Inventory Status</h3>
-                    <p className="text-sm text-offwhite/70">Current inventory levels and restock recommendations</p>
-                  </div>
-                  <button className="rounded-md bg-gold-soft px-3 py-1 text-sm font-semibold text-jetblack hover:bg-gold-deep">
+                <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
+                  <h3 className="font-display text-offwhite mb-2">Inventory Status</h3>
+                  <p className="text-sm text-offwhite/70 mb-4">Current inventory levels and restock recommendations</p>
+                  <button className="w-full rounded-md bg-gold-soft py-2 text-sm font-semibold text-jetblack hover:bg-gold-deep transition-colors">
                     Download
                   </button>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-display text-offwhite">Financial Summary</h3>
-                    <p className="text-sm text-offwhite/70">Revenue, expenses, and profit analysis</p>
-                  </div>
-                  <button className="rounded-md bg-gold-soft px-3 py-1 text-sm font-semibold text-jetblack hover:bg-gold-deep">
+                <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
+                  <h3 className="font-display text-offwhite mb-2">Financial Summary</h3>
+                  <p className="text-sm text-offwhite/70 mb-4">Revenue, expenses, and profit analysis</p>
+                  <button className="w-full rounded-md bg-gold-soft py-2 text-sm font-semibold text-jetblack hover:bg-gold-deep transition-colors">
                     Download
                   </button>
                 </div>
