@@ -13,7 +13,7 @@ interface ProtectedRouteProps {
   allowGuest?: boolean
 }
 
-export default function ProtectedRoute({ children, requiredRole, allowGuest = false }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requiredRole, allowGuest = true }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname() || "" // Provide default empty string if pathname is undefined
@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children, requiredRole, allowGuest = fa
 
       // If not logged in and guest browsing is not allowed, redirect to login
       if (!user && !allowGuest) {
-        router.push("/login")
+        router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`)
         return
       }
 
