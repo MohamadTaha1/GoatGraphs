@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,6 +20,8 @@ export default function VideosPage() {
 
   // Use the hook to fetch videos from Firestore
   const { videos, loading, error } = useVideos({ onlyAvailable: true })
+
+  console.log("Videos from Firestore:", videos)
 
   // Example video data
   const exampleVideo = {
@@ -98,18 +100,25 @@ export default function VideosPage() {
 
   // Transform videos data to player format if available
   const availablePlayers =
-    videos.length > 0
+    videos && videos.length > 0
       ? videos.map((video) => ({
           id: video.id,
           playerName: video.playerName,
           position: video.position || "Player",
           team: video.team || "Professional Team",
           price: video.price,
-          thumbnailUrl: video.thumbnailUrl,
+          thumbnailUrl:
+            video.thumbnailUrl || `/images/video-thumbnails/${video.playerName.toLowerCase().replace(/\s+/g, "-")}.png`,
           availability: video.availability || "7-14 days",
-          description: video.description,
+          description:
+            video.description ||
+            `Request a personalized video message from ${video.playerName}, one of the world's top football players.`,
         }))
       : fallbackPlayers
+
+  useEffect(() => {
+    console.log("Available players:", availablePlayers)
+  }, [availablePlayers])
 
   const handleRequestVideo = (player) => {
     if (!user) {

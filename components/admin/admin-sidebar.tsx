@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
@@ -19,24 +20,37 @@ import {
   Database,
   UserCog,
   Video,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { signOut } from "firebase/auth"
+import { auth } from "@/lib/firebase/auth"
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function AdminSidebar({ className }: SidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const isActive = (path: string) => {
     return pathname === path || pathname?.startsWith(`${path}/`)
   }
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      router.push("/login")
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
+  }
+
   return (
-    <div className={cn("pb-12 border-r border-gold/20", className)}>
-      <div className="space-y-4 py-4">
+    <div className={cn("pb-12 border-r border-gold/20 flex flex-col h-screen", className)}>
+      <div className="space-y-4 py-4 flex-1 flex flex-col min-h-0">
         <div className="px-4 py-2">
           <div className="flex items-center justify-between">
             {!isCollapsed && (
@@ -54,7 +68,7 @@ export function AdminSidebar({ className }: SidebarProps) {
             </Button>
           </div>
         </div>
-        <ScrollArea className="px-1">
+        <ScrollArea className="px-1 flex-1">
           <div className="space-y-1 p-2">
             <Link href="/admin" passHref>
               <Button
@@ -227,6 +241,17 @@ export function AdminSidebar({ className }: SidebarProps) {
             </Link>
           </div>
         </ScrollArea>
+        <div className="mt-auto p-2">
+          <Button
+            onClick={handleLogout}
+            variant="ghost"
+            size={isCollapsed ? "icon" : "default"}
+            className={cn("w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-100/10")}
+          >
+            <LogOut className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />
+            {!isCollapsed && <span>Logout</span>}
+          </Button>
+        </div>
       </div>
     </div>
   )
