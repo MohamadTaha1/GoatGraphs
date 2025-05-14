@@ -23,7 +23,7 @@ import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
 import { getProduct, type Product, useProducts } from "@/hooks/use-products"
 import { formatPrice } from "@/lib/utils"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@/hooks/use-user"
 
 export default function ProductPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null)
@@ -33,7 +33,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const { addItem } = useCart()
   const { toast } = useToast()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user } = useUser()
 
   // Fetch related products
   const { products: allProducts } = useProducts()

@@ -135,7 +135,7 @@ export default function LoginPage() {
           <Button
             variant="outline"
             className="w-full border-gold/30 text-gold hover:bg-gold/10"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/customer")}
           >
             Continue as Guest
           </Button>

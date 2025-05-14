@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useVideos } from "@/hooks/use-videos"
 import { Play, Clock, Calendar, User, MessageSquare, Loader2, Info, ChevronRight } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function VideosPage() {
   const router = useRouter()
@@ -20,8 +20,6 @@ export default function VideosPage() {
 
   // Use the hook to fetch videos from Firestore
   const { videos, loading, error } = useVideos({ onlyAvailable: true })
-
-  console.log("Videos from Firestore:", videos)
 
   // Example video data
   const exampleVideo = {
@@ -100,25 +98,18 @@ export default function VideosPage() {
 
   // Transform videos data to player format if available
   const availablePlayers =
-    videos && videos.length > 0
+    videos.length > 0
       ? videos.map((video) => ({
           id: video.id,
           playerName: video.playerName,
           position: video.position || "Player",
           team: video.team || "Professional Team",
           price: video.price,
-          thumbnailUrl:
-            video.thumbnailUrl || `/images/video-thumbnails/${video.playerName.toLowerCase().replace(/\s+/g, "-")}.png`,
+          thumbnailUrl: video.thumbnailUrl,
           availability: video.availability || "7-14 days",
-          description:
-            video.description ||
-            `Request a personalized video message from ${video.playerName}, one of the world's top football players.`,
+          description: video.description,
         }))
       : fallbackPlayers
-
-  useEffect(() => {
-    console.log("Available players:", availablePlayers)
-  }, [availablePlayers])
 
   const handleRequestVideo = (player) => {
     if (!user) {
