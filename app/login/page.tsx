@@ -106,12 +106,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-4 text-center text-sm">
-            <p className="text-offwhite/50 font-body">Test accounts:</p>
-            <p className="text-offwhite/70 font-body">Admin: admin@legendarysignatures.com / admin123</p>
-            <p className="text-offwhite/70 font-body">Customer: customer@example.com / password123</p>
-          </div>
         </CardContent>
         <CardFooter className="flex justify-center">
           <div className="text-center">

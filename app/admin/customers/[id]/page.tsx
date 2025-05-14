@@ -39,6 +39,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
           try {
             const db = getFirestoreInstance()
             if (db) {
+              console.log(`Fetching orders for customer ID: ${params.id}`)
               const ordersQuery = query(
                 collection(db, "orders"),
                 where("userId", "==", params.id),
@@ -47,6 +48,8 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
               )
 
               const ordersSnapshot = await getDocs(ordersQuery)
+              console.log(`Found ${ordersSnapshot.docs.length} orders for customer`)
+
               const ordersData = ordersSnapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
@@ -56,6 +59,11 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
             }
           } catch (orderError) {
             console.error("Error fetching customer orders:", orderError)
+            setError(
+              new Error(
+                `Failed to load customer orders: ${orderError instanceof Error ? orderError.message : String(orderError)}`,
+              ),
+            )
             // Continue with customer data even if orders fail
           }
         } else {
