@@ -231,6 +231,10 @@ export default function VideosPage() {
                     <p className="text-white font-bold">Temporarily Unavailable</p>
                   </div>
                 )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                <div className="absolute bottom-2 right-2 bg-gold text-black text-xs font-bold px-2 py-1 rounded-full">
+                  <Play className="h-3 w-3 inline mr-1" /> Video
+                </div>
               </div>
               <CardContent className="pt-4">
                 <h3 className="font-display font-bold text-xl text-gold">{player.name}</h3>

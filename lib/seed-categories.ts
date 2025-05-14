@@ -12,15 +12,8 @@ export async function seedCategories() {
     const storage = getStorage()
     const categoriesCollection = collection(db, "categories")
 
-    // Define our required categories
+    // Define our required categories (removed footballs)
     const requiredCategories = [
-      {
-        id: "footballs",
-        name: "Footballs",
-        description: "Authentic match and training footballs",
-        imageUrl: "/images/categories/footballs.png",
-        featured: true,
-      },
       {
         id: "jerseys",
         name: "Jerseys",
@@ -33,6 +26,13 @@ export async function seedCategories() {
         name: "Boots",
         description: "Professional football boots worn by the stars",
         imageUrl: "/images/categories/boots.png",
+        featured: true,
+      },
+      {
+        id: "memorabilia",
+        name: "Memorabilia",
+        description: "Unique football memorabilia and collectibles",
+        imageUrl: "/images/categories/memorabilia.png",
         featured: true,
       },
     ]

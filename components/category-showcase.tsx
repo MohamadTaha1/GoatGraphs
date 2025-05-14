@@ -19,18 +19,17 @@ export function CategoryShowcase() {
     }
   }
 
-  // Make sure we have our key categories
+  // Make sure we have our key categories (excluding footballs)
   const getHighlightedCategories = (categories: Category[]) => {
-    const balls = ensureCategory("Footballs", categories)
     const jerseys = ensureCategory("Jerseys", categories)
     const boots = ensureCategory("Boots", categories)
 
     // Add these first, then add any others
-    const highlighted = [balls, jerseys, boots]
+    const highlighted = [jerseys, boots]
 
-    // Add other categories that aren't already included
+    // Add other categories that aren't already included and aren't footballs
     categories.forEach((cat) => {
-      if (!highlighted.some((h) => h.id === cat.id)) {
+      if (!highlighted.some((h) => h.id === cat.id) && cat.name.toLowerCase() !== "footballs") {
         highlighted.push(cat)
       }
     })
