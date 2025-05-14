@@ -15,22 +15,24 @@ import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { CreditCard, ArrowLeft, CheckCircle2, Truck, Shield, Loader2 } from "lucide-react"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
 import { collection, addDoc, Timestamp, query, orderBy, limit, getDocs } from "firebase/firestore"
+import { db, isFirestoreAvailable } from "@/lib/firebase"
 
 export default function CheckoutPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { items, subtotal, clearCart } = useCart()
+  const { items = [], subtotal = 0, clearCart } = useCart()
   const { toast } = useToast()
   const [paymentMethod, setPaymentMethod] = useState("credit-card")
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [orderId, setOrderId] = useState<number | null>(null)
 
-  const deliveryFee = subtotal >= 1000 ? 0 : 50
-  const tax = subtotal * 0.05 // 5% tax
-  const total = subtotal + deliveryFee + tax
+  // Ensure numeric values with defaults
+  const safeSubtotal = typeof subtotal === "number" ? subtotal : 0
+  const deliveryFee = safeSubtotal >= 1000 ? 0 : 50
+  const tax = safeSubtotal * 0.05 // 5% tax
+  const total = safeSubtotal + deliveryFee + tax
 
   const [formData, setFormData] = useState({
     firstName: user?.displayName?.split(" ")[0] || "",
@@ -57,10 +59,9 @@ export default function CheckoutPage() {
     setIsProcessing(true)
 
     try {
-      // Create order in Firestore
-      const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
+      // Check if Firestore is available
+      if (!isFirestoreAvailable()) {
+        throw new Error("Firestore is not available")
       }
 
       // Get the latest order ID to increment
@@ -80,7 +81,7 @@ export default function CheckoutPage() {
       // Format order data
       const orderData = {
         numericOrderId: nextOrderId, // Add numeric order ID
-        userId: user?.uid || null, // FIX: Changed from user?.id to user?.uid
+        userId: user?.uid || null,
         customerInfo: {
           name: `${formData.firstName} ${formData.lastName}`,
           email: formData.email,
@@ -93,13 +94,13 @@ export default function CheckoutPage() {
           },
         },
         items: items.map((item) => ({
-          productId: item.id,
+          productId: item.productId || item.id,
           productName: item.name,
-          quantity: item.quantity,
-          price: item.price,
+          quantity: item.quantity || 1,
+          price: item.price || 0,
           imageUrl: item.image,
         })),
-        subtotal,
+        subtotal: safeSubtotal,
         shipping: deliveryFee,
         tax,
         total,
@@ -166,7 +167,7 @@ export default function CheckoutPage() {
     )
   }
 
-  if (items.length === 0) {
+  if (!items || items.length === 0) {
     router.push("/customer/cart")
     return null
   }
@@ -433,18 +434,25 @@ export default function CheckoutPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="flex gap-4">
+                <div key={item.id || item.productId} className="flex gap-4">
                   <div className="relative h-16 w-16 flex-shrink-0">
-                    <Image src={item.image || "/placeholder.svg"} alt={item.name} fill className="object-contain" />
+                    <Image
+                      src={item.image || "/placeholder.svg"}
+                      alt={item.name || "Product"}
+                      fill
+                      className="object-contain"
+                    />
                   </div>
                   <div className="flex-grow">
-                    <h3 className="font-display font-bold text-sm">{item.name}</h3>
+                    <h3 className="font-display font-bold text-sm">{item.name || "Product"}</h3>
                     <p className="text-gray-500 text-xs font-body">
                       {item.team} {item.size && `• Size ${item.size}`}
                     </p>
                     <div className="flex justify-between mt-1">
-                      <p className="text-xs font-body">Qty: {item.quantity}</p>
-                      <p className="font-display font-bold text-sm">${(item.price * item.quantity).toFixed(2)}</p>
+                      <p className="text-xs font-body">Qty: {item.quantity || 1}</p>
+                      <p className="font-display font-bold text-sm">
+                        ${((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -452,7 +460,7 @@ export default function CheckoutPage() {
               <Separator className="my-2 bg-gold-700/50" />
               <div className="flex justify-between font-body">
                 <span>Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>${safeSubtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-body">
                 <span>Delivery Fee</span>

@@ -6,20 +6,32 @@ let authInstance: Auth | undefined
 // Initialize and export Firebase Auth
 export function getAuthInstance() {
   if (typeof window === "undefined") {
-    throw new Error("Firebase Auth can only be accessed in the browser")
+    return undefined // Return undefined on server-side
   }
 
-  if (!authInstance) {
-    try {
-      const app = getFirebaseApp()
-      authInstance = getAuth(app)
-    } catch (error) {
-      console.error("Error initializing Firebase Auth:", error)
+  if (authInstance) {
+    return authInstance
+  }
+
+  try {
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
       return undefined
     }
-  }
 
-  return authInstance
+    console.log("Initializing Firebase Auth")
+    authInstance = getAuth(app)
+    return authInstance
+  } catch (error) {
+    console.error("Error initializing Firebase Auth:", error)
+    return undefined
+  }
+}
+
+// Initialize Auth immediately in client-side
+if (typeof window !== "undefined") {
+  getAuthInstance()
 }
 
 // Export auth as a named export for compatibility

@@ -4,26 +4,31 @@ const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: "goatgraphs-shirts.appspot.com", // Updated storage bucket
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "goatgraphs-shirts.appspot.com",
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
+// Initialize Firebase
 let firebaseApp = null
 
 export function getFirebaseApp() {
-  if (firebaseApp) return firebaseApp
-
   if (typeof window === "undefined") {
-    console.warn("Firebase app cannot be initialized on the server side")
-    return null
+    return null // Return null on server-side
+  }
+
+  if (firebaseApp) {
+    return firebaseApp
   }
 
   try {
+    // Check if Firebase app is already initialized
     if (getApps().length === 0) {
+      console.log("Initializing Firebase app")
       firebaseApp = initializeApp(firebaseConfig)
-      console.log("Firebase app initialized successfully")
     } else {
+      console.log("Firebase app already initialized")
       firebaseApp = getApp()
     }
     return firebaseApp
@@ -31,4 +36,9 @@ export function getFirebaseApp() {
     console.error("Error initializing Firebase app:", error)
     return null
   }
+}
+
+// Initialize Firebase immediately in client-side
+if (typeof window !== "undefined") {
+  getFirebaseApp()
 }

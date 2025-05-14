@@ -12,21 +12,28 @@ import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, subtotal, clearCart } = useCart()
+  const { items = [], removeItem, updateQuantity, clearCart, total = 0 } = useCart()
   const { toast } = useToast()
   const [promoCode, setPromoCode] = useState("")
   const [isApplyingPromo, setIsApplyingPromo] = useState(false)
 
-  const deliveryFee = subtotal >= 1000 ? 0 : 50
-  const total = subtotal + deliveryFee
+  // Calculate subtotal safely
+  const subtotal = items.reduce((sum, item) => {
+    const itemPrice = item.price || 0
+    const itemQuantity = item.quantity || 0
+    return sum + itemPrice * itemQuantity
+  }, 0)
 
-  const handleQuantityChange = (id: number, newQuantity: number) => {
+  const deliveryFee = subtotal >= 1000 ? 0 : 50
+  const totalWithDelivery = subtotal + deliveryFee
+
+  const handleQuantityChange = (id: string, newQuantity: number) => {
     if (newQuantity > 0) {
       updateQuantity(id, newQuantity)
     }
   }
 
-  const handleRemoveItem = (id: number) => {
+  const handleRemoveItem = (id: string) => {
     removeItem(id)
     toast({
       title: "Item removed",
@@ -45,7 +52,7 @@ export default function CartPage() {
     }, 1000)
   }
 
-  if (items.length === 0) {
+  if (!items || items.length === 0) {
     return (
       <div className="container py-16">
         <div className="max-w-2xl mx-auto text-center">
@@ -89,7 +96,7 @@ export default function CartPage() {
                         {item.size && <p className="text-gray-500 font-body">Size: {item.size}</p>}
                       </div>
                       <div className="text-right mt-2 sm:mt-0">
-                        <p className="font-display font-bold">${item.price.toFixed(2)}</p>
+                        <p className="font-display font-bold">${(item.price || 0).toFixed(2)}</p>
                       </div>
                     </div>
                     <div className="flex justify-between items-center mt-4">
@@ -98,22 +105,22 @@ export default function CartPage() {
                           variant="outline"
                           size="icon"
                           className="h-8 w-8 rounded-r-none border-gold-700"
-                          onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                          onClick={() => handleQuantityChange(item.productId, (item.quantity || 1) - 1)}
                         >
                           -
                         </Button>
                         <Input
                           type="number"
                           min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleQuantityChange(item.id, Number.parseInt(e.target.value) || 1)}
+                          value={item.quantity || 1}
+                          onChange={(e) => handleQuantityChange(item.productId, Number.parseInt(e.target.value) || 1)}
                           className="h-8 w-12 rounded-none text-center border-x-0 border-gold-700"
                         />
                         <Button
                           variant="outline"
                           size="icon"
                           className="h-8 w-8 rounded-l-none border-gold-700"
-                          onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                          onClick={() => handleQuantityChange(item.productId, (item.quantity || 1) + 1)}
                         >
                           +
                         </Button>
@@ -122,7 +129,7 @@ export default function CartPage() {
                         variant="ghost"
                         size="icon"
                         className="text-red-500 hover:text-red-700 hover:bg-transparent"
-                        onClick={() => handleRemoveItem(item.id)}
+                        onClick={() => handleRemoveItem(item.productId)}
                       >
                         <Trash2 className="h-5 w-5" />
                         <span className="sr-only">Remove</span>
@@ -188,7 +195,7 @@ export default function CartPage() {
               <Separator className="my-2 bg-gold-700/50" />
               <div className="flex justify-between font-display font-bold text-lg">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>${totalWithDelivery.toFixed(2)}</span>
               </div>
               <p className="text-sm text-gray-500 font-body">
                 Delivery available only in Dubai. Free delivery on orders over AED 1,000.

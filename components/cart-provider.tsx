@@ -4,7 +4,7 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
+import { db, isFirestoreAvailable } from "@/lib/firebase"
 
 // Types
 export type CartItem = {
@@ -29,6 +29,7 @@ interface CartContextType {
   clearCart: () => void
   isLoading: boolean
   total: number
+  itemCount: number
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -39,6 +40,7 @@ const CART_STORAGE_KEY = "legendary_signatures_cart"
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<Cart>({ items: [], total: 0 })
   const [isLoading, setIsLoading] = useState(true)
+  const [itemCount, setItemCount] = useState(0)
   const { user } = useAuth()
 
   // Calculate total
@@ -46,50 +48,55 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   }
 
+  // Calculate item count
+  const calculateItemCount = (items: CartItem[]): number => {
+    return items.reduce((sum, item) => sum + item.quantity, 0)
+  }
+
   // Load cart from local storage or Firestore
   useEffect(() => {
     const loadCart = async () => {
       setIsLoading(true)
       try {
-        if (user?.uid) {
-          // Load from Firestore if user is logged in
-          const db = getFirestoreInstance()
-          if (!db) {
-            throw new Error("Firestore not initialized")
-          }
+        // First check local storage in all cases
+        const localCart = localStorage.getItem(CART_STORAGE_KEY)
+        let cartData: Cart = { items: [], total: 0 }
 
-          const cartDoc = await getDoc(doc(db, "carts", user.uid))
-          if (cartDoc.exists()) {
-            const cartData = cartDoc.data() as { items: CartItem[] }
-            setCart({
-              items: cartData.items || [],
-              total: calculateTotal(cartData.items || []),
-            })
-          } else {
-            // If no cart in Firestore, check local storage
-            const localCart = localStorage.getItem(CART_STORAGE_KEY)
-            if (localCart) {
-              const parsedCart = JSON.parse(localCart) as Cart
-              setCart(parsedCart)
-              // Save local cart to Firestore
-              await setDoc(doc(db, "carts", user.uid), { items: parsedCart.items })
-            } else {
-              setCart({ items: [], total: 0 })
+        if (localCart) {
+          cartData = JSON.parse(localCart) as Cart
+        }
+
+        // If user is logged in and Firestore is available, try to get cart from Firestore
+        if (user?.uid && isFirestoreAvailable()) {
+          try {
+            const cartDoc = await getDoc(doc(db, "carts", user.uid))
+            if (cartDoc.exists()) {
+              const firestoreCartData = cartDoc.data() as { items: CartItem[] }
+              const items = firestoreCartData.items || []
+              cartData = {
+                items,
+                total: calculateTotal(items),
+              }
+
+              // Update local storage with Firestore data
+              localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData))
+            } else if (localCart) {
+              // If no cart in Firestore but we have local cart, save it to Firestore
+              await setDoc(doc(db, "carts", user.uid), { items: cartData.items })
             }
-          }
-        } else {
-          // Load from local storage if user is not logged in
-          const localCart = localStorage.getItem(CART_STORAGE_KEY)
-          if (localCart) {
-            setCart(JSON.parse(localCart))
-          } else {
-            setCart({ items: [], total: 0 })
+          } catch (error) {
+            console.error("Error loading cart from Firestore:", error)
+            // Continue with local cart data
           }
         }
+
+        setCart(cartData)
+        setItemCount(calculateItemCount(cartData.items))
       } catch (error) {
         console.error("Error loading cart:", error)
         // Fallback to empty cart
         setCart({ items: [], total: 0 })
+        setItemCount(0)
       } finally {
         setIsLoading(false)
       }
@@ -104,16 +111,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Always save to local storage
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newCart))
 
-      // Save to Firestore if user is logged in
-      if (user?.uid) {
-        const db = getFirestoreInstance()
-        if (!db) {
-          throw new Error("Firestore not initialized")
-        }
+      // Save to Firestore if user is logged in and Firestore is available
+      if (user?.uid && isFirestoreAvailable()) {
+        try {
+          // Check if document exists first
+          const cartDoc = await getDoc(doc(db, "carts", user.uid))
 
-        await updateDoc(doc(db, "carts", user.uid), {
-          items: newCart.items,
-        })
+          if (cartDoc.exists()) {
+            await updateDoc(doc(db, "carts", user.uid), {
+              items: newCart.items,
+            })
+          } else {
+            await setDoc(doc(db, "carts", user.uid), {
+              items: newCart.items,
+            })
+          }
+        } catch (error) {
+          console.error("Error saving cart to Firestore:", error)
+          // Continue with local storage only
+        }
       }
     } catch (error) {
       console.error("Error saving cart:", error)
@@ -149,6 +165,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       const newCart = { items: newItems, total: calculateTotal(newItems) }
       saveCart(newCart)
+
+      // Update item count immediately
+      setItemCount(calculateItemCount(newItems))
+
       return newCart
     })
   }
@@ -159,6 +179,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const newItems = prevCart.items.filter((item) => item.productId !== productId)
       const newCart = { items: newItems, total: calculateTotal(newItems) }
       saveCart(newCart)
+
+      // Update item count immediately
+      setItemCount(calculateItemCount(newItems))
+
       return newCart
     })
   }
@@ -171,6 +195,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const newItems = prevCart.items.map((item) => (item.productId === productId ? { ...item, quantity } : item))
       const newCart = { items: newItems, total: calculateTotal(newItems) }
       saveCart(newCart)
+
+      // Update item count immediately
+      setItemCount(calculateItemCount(newItems))
+
       return newCart
     })
   }
@@ -179,6 +207,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => {
     const emptyCart = { items: [], total: 0 }
     setCart(emptyCart)
+    setItemCount(0)
     saveCart(emptyCart)
   }
 
@@ -192,6 +221,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         isLoading,
         total: cart.total,
+        itemCount,
       }}
     >
       {children}

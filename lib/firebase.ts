@@ -1,104 +1,165 @@
 "use client"
 
 import { initializeApp, getApps, getApp } from "firebase/app"
-import { getFirestore, type Firestore } from "firebase/firestore"
 import { getAuth, type Auth } from "firebase/auth"
+import { getFirestore, type Firestore } from "firebase/firestore"
 import { getStorage, type FirebaseStorage } from "firebase/storage"
 
+// Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "goatgraphs-shirts.firebasestorage.app",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-// Initialize Firebase app
-const firebaseApp =
-  typeof window !== "undefined" ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()) : null
+let app: any
+let auth: Auth | undefined
+let db: Firestore | undefined
+let storage: FirebaseStorage | undefined
 
-// Initialize services
-export const db = typeof window !== "undefined" ? getFirestore(firebaseApp) : null
-export const auth = typeof window !== "undefined" ? getAuth(firebaseApp) : null
-export const storage = typeof window !== "undefined" ? getStorage(firebaseApp) : null
-
-// Keep the existing functions for backward compatibility
-let dbInstance: Firestore | undefined
-let authInstance: Auth | undefined
-let storageInstance: FirebaseStorage | undefined
+function createFirebaseApp() {
+  try {
+    if (getApps().length === 0) {
+      app = initializeApp(firebaseConfig)
+      console.log("Firebase app initialized successfully")
+    } else {
+      app = getApp()
+      console.log("Firebase app already initialized")
+    }
+    return app
+  } catch (error) {
+    console.error("Error initializing Firebase app:", error)
+    return null
+  }
+}
 
 export function getFirebaseApp() {
   if (typeof window === "undefined") {
-    console.warn("Firebase app cannot be initialized on the server side")
     return null
   }
 
-  return firebaseApp
-}
-
-// Export a function to get Firestore that ensures it's only called client-side
-export function getFirestoreInstance() {
-  if (typeof window === "undefined") {
-    throw new Error("Firestore can only be accessed in the browser")
+  if (app) {
+    return app
   }
 
-  if (!dbInstance) {
-    try {
-      if (firebaseApp) {
-        dbInstance = db as Firestore
-        console.log("Firestore instance created successfully")
-      } else {
-        console.error("Firebase app is not initialized")
-        return null
-      }
-    } catch (error) {
-      console.error("Error getting Firestore instance:", error)
-      throw new Error("Failed to get Firestore instance")
-    }
-  }
-
-  return dbInstance
+  return createFirebaseApp()
 }
 
-// Initialize and export Firebase Auth
 export function getAuthInstance() {
   if (typeof window === "undefined") {
-    throw new Error("Firebase Auth can only be accessed in the browser")
+    return undefined
   }
 
-  if (!authInstance) {
-    try {
-      if (firebaseApp) {
-        authInstance = auth as Auth
-      } else {
-        console.error("Firebase app is not initialized")
-        return null
-      }
-    } catch (error) {
-      console.error("Error initializing Firebase Auth:", error)
+  if (auth) {
+    return auth
+  }
+
+  try {
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
       return undefined
     }
+
+    auth = getAuth(app)
+    console.log("Auth initialized successfully")
+    return auth
+  } catch (error) {
+    console.error("Error initializing Firebase Auth:", error)
+    return undefined
+  }
+}
+
+export function getFirestoreInstance() {
+  if (typeof window === "undefined") {
+    return undefined
   }
 
-  return authInstance
+  if (db) {
+    return db
+  }
+
+  try {
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
+      return undefined
+    }
+
+    db = getFirestore(app)
+    console.log("Firestore initialized successfully")
+    return db
+  } catch (error) {
+    console.error("Error initializing Firestore:", error)
+    return undefined
+  }
 }
 
 export function getStorageInstance() {
-  if (!storageInstance) {
-    try {
-      if (firebaseApp) {
-        storageInstance = storage as FirebaseStorage
-        console.log("Firebase Storage instance created successfully")
-      } else {
-        console.error("Firebase app is not initialized")
-        return null
-      }
-    } catch (error) {
-      console.error("Error initializing Firebase Storage:", error)
-      return null
-    }
+  if (typeof window === "undefined") {
+    return undefined
   }
 
-  return storageInstance
+  if (storage) {
+    return storage
+  }
+
+  try {
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
+      return undefined
+    }
+
+    storage = getStorage(app)
+    console.log("Storage initialized successfully")
+    return storage
+  } catch (error) {
+    console.error("Error initializing Storage:", error)
+    return undefined
+  }
+}
+
+// Initialize services on client side
+if (typeof window !== "undefined") {
+  app = getFirebaseApp()
+  auth = getAuthInstance()
+
+  // Try to initialize Firestore but don't throw if it fails
+  try {
+    db = getFirestoreInstance()
+  } catch (error) {
+    console.warn("Firestore initialization skipped:", error)
+  }
+
+  // Try to initialize Storage but don't throw if it fails
+  try {
+    storage = getStorageInstance()
+  } catch (error) {
+    console.warn("Storage initialization skipped:", error)
+  }
+}
+
+// Export initialized instances
+export { app as firebaseApp, auth, db, storage }
+
+// Utility functions to check service availability
+export function isFirebaseAvailable() {
+  return !!app
+}
+
+export function isAuthAvailable() {
+  return !!auth
+}
+
+export function isFirestoreAvailable() {
+  return !!db
+}
+
+export function isStorageAvailable() {
+  return !!storage
 }
