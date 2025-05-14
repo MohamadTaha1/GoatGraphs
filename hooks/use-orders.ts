@@ -160,7 +160,8 @@ const FALLBACK_ORDERS: Order[] = [
 ]
 
 // Hook to fetch orders
-export function useOrders(statusFilter = "all") {
+export function useOrders(options: { statusFilter?: string; userId?: string } = {}) {
+  const { statusFilter = "all", userId } = options
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -184,14 +185,28 @@ export function useOrders(statusFilter = "all") {
           } else {
             console.warn("Firestore instance is null, using fallback data")
             setFirestoreAvailable(false)
-            setOrders(FALLBACK_ORDERS)
+
+            // If userId is provided, filter fallback orders
+            if (userId) {
+              setOrders(FALLBACK_ORDERS.filter((order) => order.userId === userId))
+            } else {
+              setOrders(FALLBACK_ORDERS)
+            }
+
             setLoading(false)
             return
           }
         } catch (err) {
           console.error("Failed to get Firestore instance:", err)
           setFirestoreAvailable(false)
-          setOrders(FALLBACK_ORDERS)
+
+          // If userId is provided, filter fallback orders
+          if (userId) {
+            setOrders(FALLBACK_ORDERS.filter((order) => order.userId === userId))
+          } else {
+            setOrders(FALLBACK_ORDERS)
+          }
+
           setLoading(false)
           return
         }
@@ -200,9 +215,28 @@ export function useOrders(statusFilter = "all") {
           // Dynamically import Firestore functions to avoid SSR issues
           const { collection, getDocs, query, where, orderBy, limit } = await import("firebase/firestore")
 
-          // Create query based on status filter
+          // Create query based on filters
           let ordersQuery
-          if (statusFilter && statusFilter !== "all") {
+
+          if (userId && statusFilter && statusFilter !== "all") {
+            // Filter by both userId and status
+            ordersQuery = query(
+              collection(db, "orders"),
+              where("userId", "==", userId),
+              where("orderStatus", "==", statusFilter),
+              orderBy("createdAt", "desc"),
+              limit(50),
+            )
+          } else if (userId) {
+            // Filter by userId only
+            ordersQuery = query(
+              collection(db, "orders"),
+              where("userId", "==", userId),
+              orderBy("createdAt", "desc"),
+              limit(50),
+            )
+          } else if (statusFilter && statusFilter !== "all") {
+            // Filter by status only
             ordersQuery = query(
               collection(db, "orders"),
               where("orderStatus", "==", statusFilter),
@@ -210,6 +244,7 @@ export function useOrders(statusFilter = "all") {
               limit(50),
             )
           } else {
+            // No filters
             ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(50))
           }
 
@@ -223,25 +258,39 @@ export function useOrders(statusFilter = "all") {
             setOrders(ordersData)
           } else {
             console.log("No orders found in Firestore, using fallback data")
-            setOrders(FALLBACK_ORDERS)
+
+            // If userId is provided, filter fallback orders
+            if (userId) {
+              setOrders(FALLBACK_ORDERS.filter((order) => order.userId === userId))
+            } else {
+              setOrders(FALLBACK_ORDERS)
+            }
           }
         } catch (queryError) {
           console.error("Error with Firestore query:", queryError)
           // Use fallback orders on query error
-          setOrders(FALLBACK_ORDERS)
+          if (userId) {
+            setOrders(FALLBACK_ORDERS.filter((order) => order.userId === userId))
+          } else {
+            setOrders(FALLBACK_ORDERS)
+          }
         }
       } catch (err) {
         console.error("Error fetching orders:", err)
         setError(err instanceof Error ? err : new Error("Unknown error"))
         // Use fallback orders on any error
-        setOrders(FALLBACK_ORDERS)
+        if (userId) {
+          setOrders(FALLBACK_ORDERS.filter((order) => order.userId === userId))
+        } else {
+          setOrders(FALLBACK_ORDERS)
+        }
       } finally {
         setLoading(false)
       }
     }
 
     fetchOrders()
-  }, [statusFilter])
+  }, [statusFilter, userId])
 
   return { orders, loading, error, firestoreAvailable, setOrders }
 }
@@ -295,5 +344,44 @@ export async function getOrder(id: string): Promise<Order | null> {
   } catch (error) {
     console.error("Error getting order:", error)
     return null
+  }
+}
+
+// Function to update an order
+export async function updateOrder(orderId: string, updates: Partial<Order>): Promise<boolean> {
+  try {
+    if (typeof window === "undefined") {
+      console.error("Cannot update order server-side")
+      return false
+    }
+
+    let db
+    try {
+      db = getFirestoreInstance()
+      if (!db) {
+        console.warn("Firestore instance is null, cannot update order")
+        return false
+      }
+    } catch (err) {
+      console.error("Failed to get Firestore instance:", err)
+      return false
+    }
+
+    // Dynamically import Firestore functions
+    const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
+
+    const orderRef = doc(db, "orders", orderId)
+
+    // Add updatedAt timestamp to updates
+    const updatesWithTimestamp = {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    }
+
+    await updateDoc(orderRef, updatesWithTimestamp)
+    return true
+  } catch (error) {
+    console.error("Error updating order:", error)
+    return false
   }
 }

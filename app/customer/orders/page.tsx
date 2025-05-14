@@ -11,15 +11,8 @@ import { ShoppingBag, Package, Truck, CheckCircle, AlertCircle, Video, Calendar,
 import { useAuth } from "@/contexts/auth-context"
 import Image from "next/image"
 import { formatPrice } from "@/lib/utils"
+import { useOrders } from "@/hooks/use-orders"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
-
-interface OrderItem {
-  productId: string
-  productName: string
-  quantity: number
-  price: number
-  imageUrl: string
-}
 
 interface VideoRequest {
   id: string
@@ -34,26 +27,20 @@ interface VideoRequest {
   videoUrl?: string
 }
 
-interface Order {
-  id: string
-  items: OrderItem[]
-  subtotal: number
-  shipping: number
-  tax: number
-  total: number
-  orderStatus: string
-  paymentStatus: string
-  createdAt: any
-  type?: "product" | "video"
-  videoRequest?: VideoRequest
-}
-
 export default function OrdersPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [orders, setOrders] = useState<Order[]>([])
-  const [videoRequests, setVideoRequests] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
+  const [videoRequests, setVideoRequests] = useState([])
+  const [loadingVideos, setLoadingVideos] = useState(true)
+
+  // Use the enhanced hook to fetch orders for the current user
+  const {
+    orders,
+    loading: loadingOrders,
+    error,
+  } = useOrders({
+    userId: user?.uid,
+  })
 
   useEffect(() => {
     if (!user) {
@@ -61,36 +48,20 @@ export default function OrdersPage() {
       return
     }
 
-    const fetchOrders = async () => {
+    const fetchVideoRequests = async () => {
       try {
-        setLoading(true)
+        setLoadingVideos(true)
         const db = getFirestoreInstance()
 
         if (!db) {
           // Fallback to mock data if Firestore is not available
-          const mockOrders = generateMockOrders()
-          setOrders(mockOrders.filter((o) => o.type !== "video"))
-          setVideoRequests(mockOrders.filter((o) => o.type === "video"))
-          setLoading(false)
+          setVideoRequests(generateMockVideoRequests())
+          setLoadingVideos(false)
           return
         }
 
         // Dynamically import Firestore functions
         const { collection, query, where, getDocs, orderBy } = await import("firebase/firestore")
-
-        // Fetch product orders
-        const ordersQuery = query(
-          collection(db, "orders"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc"),
-        )
-
-        const ordersSnapshot = await getDocs(ordersQuery)
-        const ordersData = ordersSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          type: "product",
-        })) as Order[]
 
         // Fetch video requests
         const videoRequestsQuery = query(
@@ -101,7 +72,7 @@ export default function OrdersPage() {
 
         const videoRequestsSnapshot = await getDocs(videoRequestsQuery)
         const videoRequestsData = videoRequestsSnapshot.docs.map((doc) => {
-          const data = doc.data() as VideoRequest
+          const data = doc.data()
           return {
             id: doc.id,
             items: [
@@ -110,7 +81,8 @@ export default function OrdersPage() {
                 productName: `Video Message from ${data.player}`,
                 quantity: 1,
                 price: data.price || 399.99,
-                imageUrl: `/placeholder.svg?height=100&width=100&query=${encodeURIComponent(data.player)}`,
+                imageUrl:
+                  data.thumbnailUrl || `/placeholder.svg?height=100&width=100&query=${encodeURIComponent(data.player)}`,
               },
             ],
             subtotal: data.price || 399.99,
@@ -120,32 +92,27 @@ export default function OrdersPage() {
             orderStatus: data.status || "pending",
             paymentStatus: "paid",
             createdAt: data.createdAt,
-            type: "video" as const,
+            type: "video",
             videoRequest: data,
           }
-        }) as Order[]
+        })
 
-        if (ordersData.length === 0 && videoRequestsData.length === 0) {
-          // If no orders in Firestore, use mock data
-          const mockOrders = generateMockOrders()
-          setOrders(mockOrders.filter((o) => o.type !== "video"))
-          setVideoRequests(mockOrders.filter((o) => o.type === "video"))
+        if (videoRequestsData.length === 0) {
+          // If no video requests in Firestore, use mock data
+          setVideoRequests(generateMockVideoRequests())
         } else {
-          setOrders(ordersData)
           setVideoRequests(videoRequestsData)
         }
       } catch (error) {
-        console.error("Error fetching orders:", error)
+        console.error("Error fetching video requests:", error)
         // Fallback to mock data on error
-        const mockOrders = generateMockOrders()
-        setOrders(mockOrders.filter((o) => o.type !== "video"))
-        setVideoRequests(mockOrders.filter((o) => o.type === "video"))
+        setVideoRequests(generateMockVideoRequests())
       } finally {
-        setLoading(false)
+        setLoadingVideos(false)
       }
     }
 
-    fetchOrders()
+    fetchVideoRequests()
   }, [user, router])
 
   const formatDate = (timestamp: any) => {
@@ -221,6 +188,8 @@ export default function OrdersPage() {
     return null // Handled by redirect
   }
 
+  const loading = loadingOrders || loadingVideos
+
   return (
     <div className="container py-8">
       <h1 className="text-3xl font-display font-bold mb-8 bg-gold-gradient bg-clip-text text-transparent">My Orders</h1>
@@ -242,7 +211,7 @@ export default function OrdersPage() {
         </TabsList>
 
         <TabsContent value="products">
-          {loading ? (
+          {loadingOrders ? (
             <div className="text-center py-12">
               <div className="animate-spin h-8 w-8 border-4 border-gold border-t-transparent rounded-full mx-auto mb-4"></div>
               <p className="text-offwhite">Loading your orders...</p>
@@ -328,7 +297,7 @@ export default function OrdersPage() {
         </TabsContent>
 
         <TabsContent value="videos">
-          {loading ? (
+          {loadingVideos ? (
             <div className="text-center py-12">
               <div className="animate-spin h-8 w-8 border-4 border-gold border-t-transparent rounded-full mx-auto mb-4"></div>
               <p className="text-offwhite">Loading your video requests...</p>
@@ -438,29 +407,9 @@ export default function OrdersPage() {
   )
 }
 
-// Generate mock orders for testing
-function generateMockOrders(): Order[] {
+// Generate mock video requests for testing
+function generateMockVideoRequests() {
   return [
-    {
-      id: "order123456",
-      items: [
-        {
-          productId: "prod1",
-          productName: "Lionel Messi Signed Jersey",
-          quantity: 1,
-          price: 1299.99,
-          imageUrl: "/placeholder.svg?key=y2sc2",
-        },
-      ],
-      subtotal: 1299.99,
-      shipping: 0,
-      tax: 0,
-      total: 1299.99,
-      orderStatus: "delivered",
-      paymentStatus: "paid",
-      createdAt: new Date("2023-04-18"),
-      type: "product",
-    },
     {
       id: "video123456",
       items: [
@@ -469,7 +418,7 @@ function generateMockOrders(): Order[] {
           productName: "Video Message from Cristiano Ronaldo",
           quantity: 1,
           price: 499.99,
-          imageUrl: "/placeholder.svg?key=qs25v",
+          imageUrl: "/images/video-thumbnails/ronaldo-birthday.png",
         },
       ],
       subtotal: 499.99,
@@ -501,7 +450,7 @@ function generateMockOrders(): Order[] {
           productName: "Video Message from Kylian Mbappé",
           quantity: 1,
           price: 399.99,
-          imageUrl: "/placeholder.svg?key=32c3y",
+          imageUrl: "/images/video-thumbnails/mbappe-congrats.png",
         },
       ],
       subtotal: 399.99,

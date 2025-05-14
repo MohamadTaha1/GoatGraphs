@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight, Eye, Download, Search, Loader2, AlertCircle, Info } from "lucide-react"
 import Link from "next/link"
-import { useOrders } from "@/hooks/use-orders"
+import { useOrders, updateOrder } from "@/hooks/use-orders"
 import { formatPrice } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
@@ -21,7 +21,9 @@ export default function OrdersPage() {
   const { toast } = useToast()
 
   // Fetch orders using our custom hook
-  const { orders, loading, error, firestoreAvailable, setOrders } = useOrders(statusFilter)
+  const { orders, loading, error, firestoreAvailable, setOrders } = useOrders({
+    statusFilter,
+  })
 
   // Filter orders based on search term
   const filteredOrders = orders.filter((order) => {
@@ -83,13 +85,7 @@ export default function OrdersPage() {
       }
 
       // Dynamically import Firestore functions
-      const { doc, updateDoc, Timestamp } = await import("firebase/firestore")
-      const { getFirestoreInstance } = await import("@/lib/firebase/firestore")
-
-      const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
+      const { Timestamp } = await import("firebase/firestore")
 
       // Create a new history entry
       const historyEntry = {
@@ -98,22 +94,24 @@ export default function OrdersPage() {
         comment: `Status updated to ${newStatus} by admin`,
       }
 
-      // Update the order in Firestore
-      const orderRef = doc(db, "orders", orderId)
-      await updateDoc(orderRef, {
+      // Update the order using our updateOrder function
+      const success = await updateOrder(orderId, {
         orderStatus: newStatus,
-        updatedAt: Timestamp.now(),
         // Add the new history entry to the beginning of the history array
         history: [historyEntry],
       })
 
-      // Update the local state
-      setOrders(orders.map((order) => (order.id === orderId ? { ...order, orderStatus: newStatus } : order)))
+      if (success) {
+        // Update the local state
+        setOrders(orders.map((order) => (order.id === orderId ? { ...order, orderStatus: newStatus } : order)))
 
-      toast({
-        title: "Status updated",
-        description: `Order status changed to ${newStatus}`,
-      })
+        toast({
+          title: "Status updated",
+          description: `Order status changed to ${newStatus}`,
+        })
+      } else {
+        throw new Error("Failed to update order")
+      }
     } catch (error) {
       console.error("Error updating order status:", error)
       toast({
