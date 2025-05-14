@@ -56,6 +56,22 @@ export function Header() {
     setIsSearchOpen(false)
   }, [pathname])
 
+  // Add this new useEffect after the existing useEffect hooks
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      // Disable scrolling on body when menu is open
+      document.body.style.overflow = "hidden"
+    } else {
+      // Re-enable scrolling when menu is closed
+      document.body.style.overflow = ""
+    }
+
+    // Cleanup function to ensure scrolling is re-enabled when component unmounts
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [isMobileMenuOpen])
+
   // Determine if the current path is active
   const isActive = (path: string) => {
     if (path === "/") {
