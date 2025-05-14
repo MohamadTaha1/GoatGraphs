@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   Gavel,
+  Video,
 } from "lucide-react"
 
 import {
@@ -173,6 +174,14 @@ export function AdminSidebar() {
                     <Link href="/admin/testimonials">
                       <MessageSquare className="h-4 w-4 text-gold" />
                       <span>Testimonials</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/videos")} tooltip="Videos">
+                    <Link href="/admin/videos">
+                      <Video className="h-4 w-4 text-gold" />
+                      <span>Videos</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -402,6 +411,18 @@ export function AdminSidebar() {
                   >
                     <MessageSquare className="h-4 w-4" />
                     <span>Testimonials</span>
+                  </Link>
+                  <Link
+                    href="/admin/videos"
+                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm ${
+                      pathname.startsWith("/admin/videos")
+                        ? "bg-gold/10 text-gold"
+                        : "text-offwhite hover:bg-gold/10 hover:text-gold"
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Video className="h-4 w-4" />
+                    <span>Videos</span>
                   </Link>
                 </nav>
               </div>

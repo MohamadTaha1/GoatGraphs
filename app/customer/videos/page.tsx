@@ -1,7 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import { useState } from "react"
+import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,12 +13,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { Video, Play, CheckCircle, Clock, Calendar, Loader2 } from "lucide-react"
+import { useVideos } from "@/hooks/use-videos"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 export default function VideosPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const { videos, loading } = useVideos({ onlyAvailable: true })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [selectedVideo, setSelectedVideo] = useState(null)
   const [formData, setFormData] = useState({
     player: "",
     occasion: "",
@@ -51,50 +62,68 @@ export default function VideosPage() {
     }, 1500)
   }
 
-  const featuredPlayers = [
+  // Fallback data in case Firestore is not available
+  const fallbackVideos = [
     {
       id: 1,
-      name: "Lionel Messi",
-      image: "/images/video-thumbnails/messi-greeting.png",
+      playerName: "Lionel Messi",
+      title: "Birthday Greeting",
+      description: "A special birthday message from Lionel Messi",
       price: 499.99,
+      duration: "30-45",
+      category: "birthday",
       available: true,
+      thumbnailUrl: "/images/video-thumbnails/messi-greeting.png",
     },
     {
       id: 2,
-      name: "Cristiano Ronaldo",
-      image: "/images/video-thumbnails/ronaldo-birthday.png",
+      playerName: "Cristiano Ronaldo",
+      title: "Congratulations Message",
+      description: "Celebrate your achievement with a message from CR7",
       price: 499.99,
       available: true,
+      thumbnailUrl: "/images/video-thumbnails/ronaldo-birthday.png",
     },
     {
       id: 3,
-      name: "Kylian Mbappé",
-      image: "/images/video-thumbnails/mbappe-congrats.png",
+      playerName: "Kylian Mbappé",
+      title: "Motivational Message",
+      description: "Get motivated with a personal message from Mbappé",
       price: 399.99,
       available: true,
+      thumbnailUrl: "/images/video-thumbnails/mbappe-congrats.png",
     },
     {
       id: 4,
-      name: "Neymar Jr.",
-      image: "/images/video-thumbnails/neymar-message.png",
+      playerName: "Neymar Jr.",
+      title: "Special Occasion Greeting",
+      description: "Celebrate your special day with Neymar Jr.",
       price: 399.99,
       available: false,
+      thumbnailUrl: "/images/video-thumbnails/neymar-message.png",
     },
     {
       id: 5,
-      name: "Kevin De Bruyne",
-      image: "/images/video-thumbnails/de-bruyne-message.png",
+      playerName: "Kevin De Bruyne",
+      title: "Personal Message",
+      description: "A personal message from Kevin De Bruyne",
       price: 349.99,
       available: true,
+      thumbnailUrl: "/images/video-thumbnails/de-bruyne-message.png",
     },
     {
       id: 6,
-      name: "Erling Haaland",
-      image: "/images/video-thumbnails/haaland-greeting.png",
+      playerName: "Erling Haaland",
+      title: "Birthday Wishes",
+      description: "Birthday wishes from the goal machine Erling Haaland",
       price: 399.99,
       available: true,
+      thumbnailUrl: "/images/video-thumbnails/haaland-greeting.png",
     },
   ]
+
+  // Use Firestore data if available, otherwise use fallback data
+  const displayVideos = videos.length > 0 ? videos : fallbackVideos
 
   const testimonials = [
     {
@@ -220,46 +249,140 @@ export default function VideosPage() {
       </div>
 
       <div className="mb-16">
-        <h2 className="text-2xl font-display font-bold mb-8 text-gold">Featured Players</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredPlayers.map((player) => (
-            <Card key={player.id} className="border-gold/30 bg-charcoal overflow-hidden">
-              <div className="relative h-[200px]">
-                <Image src={player.image || "/placeholder.svg"} alt={player.name} fill className="object-cover" />
-                {!player.available && (
-                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                    <p className="text-white font-bold">Temporarily Unavailable</p>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-                <div className="absolute bottom-2 right-2 bg-gold text-black text-xs font-bold px-2 py-1 rounded-full">
-                  <Play className="h-3 w-3 inline mr-1" /> Video
-                </div>
-              </div>
-              <CardContent className="pt-4">
-                <h3 className="font-display font-bold text-xl text-gold">{player.name}</h3>
-                <div className="flex justify-between items-center mt-2">
-                  <p className="text-offwhite/80 font-body">${player.price.toFixed(2)}</p>
-                  <p className="text-offwhite/60 text-sm font-body">{player.available ? "Available" : "Unavailable"}</p>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  onClick={() => {
-                    if (player.available) {
-                      setFormData((prev) => ({ ...prev, player: player.name }))
-                      document.getElementById("request-form")?.scrollIntoView({ behavior: "smooth" })
-                    }
-                  }}
-                  className="w-full bg-gold-soft hover:bg-gold-deep text-jetblack font-body"
-                  disabled={!player.available}
-                >
-                  {player.available ? "Request Video" : "Currently Unavailable"}
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-display font-bold text-gold">Featured Players</h2>
+          <div className="flex items-center gap-2">
+            <Select defaultValue="all">
+              <SelectTrigger className="w-[180px] border-gold/20">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="birthday">Birthday</SelectItem>
+                <SelectItem value="congratulations">Congratulations</SelectItem>
+                <SelectItem value="motivation">Motivation</SelectItem>
+                <SelectItem value="greeting">General Greeting</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i} className="border-gold/30 bg-charcoal overflow-hidden">
+                <div className="relative h-[200px] bg-gray-800 animate-pulse"></div>
+                <CardContent className="pt-4">
+                  <div className="h-6 bg-gray-700 rounded animate-pulse mb-2"></div>
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="h-4 w-16 bg-gray-700 rounded animate-pulse"></div>
+                    <div className="h-4 w-20 bg-gray-700 rounded animate-pulse"></div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <div className="w-full h-10 bg-gray-700 rounded animate-pulse"></div>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {displayVideos.map((video) => (
+              <Card key={video.id} className="border-gold/30 bg-charcoal overflow-hidden">
+                <div className="relative h-[200px]">
+                  <Image
+                    src={video.thumbnailUrl || "/placeholder.svg"}
+                    alt={video.title || video.playerName}
+                    fill
+                    className="object-cover"
+                  />
+                  {!video.available && (
+                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                      <p className="text-white font-bold">Temporarily Unavailable</p>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button
+                        className="absolute bottom-2 right-2 bg-gold text-black text-xs font-bold px-2 py-1 rounded-full"
+                        onClick={() => setSelectedVideo(video)}
+                      >
+                        <Play className="h-3 w-3 inline mr-1" /> Preview
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl">
+                      <DialogHeader>
+                        <DialogTitle>{video.title || `${video.playerName} Video`}</DialogTitle>
+                        <DialogDescription>
+                          {video.description || `A personalized video message from ${video.playerName}`}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="aspect-video relative rounded-lg overflow-hidden bg-black">
+                        {video.videoUrl ? (
+                          <video src={video.videoUrl} controls className="w-full h-full" poster={video.thumbnailUrl} />
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <Image
+                              src={video.thumbnailUrl || "/placeholder.svg"}
+                              alt={video.title || video.playerName}
+                              fill
+                              className="object-cover opacity-70"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="bg-black/50 p-4 rounded-lg text-center">
+                                <Play className="h-12 w-12 text-gold mx-auto mb-2" />
+                                <p className="text-white">Preview not available</p>
+                                <p className="text-white/70 text-sm">
+                                  Request a personalized video to see the full content
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={() => {
+                            setFormData((prev) => ({ ...prev, player: video.playerName }))
+                            document.getElementById("request-form")?.scrollIntoView({ behavior: "smooth" })
+                          }}
+                          className="bg-gold-soft hover:bg-gold-deep text-jetblack font-body"
+                        >
+                          Request Personalized Video
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                <CardContent className="pt-4">
+                  <h3 className="font-display font-bold text-xl text-gold">{video.playerName}</h3>
+                  <p className="text-offwhite/80 text-sm mb-1">{video.title || "Personalized Video Message"}</p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-offwhite/80 font-body">${video.price?.toFixed(2)}</p>
+                    <p className="text-offwhite/60 text-sm font-body">
+                      {video.duration ? `${video.duration}s` : "30-60s"}
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    onClick={() => {
+                      if (video.available) {
+                        setFormData((prev) => ({ ...prev, player: video.playerName }))
+                        document.getElementById("request-form")?.scrollIntoView({ behavior: "smooth" })
+                      }
+                    }}
+                    className="w-full bg-gold-soft hover:bg-gold-deep text-jetblack font-body"
+                    disabled={!video.available}
+                  >
+                    {video.available ? "Request Video" : "Currently Unavailable"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mb-16">
@@ -341,11 +464,11 @@ export default function VideosPage() {
                           <SelectValue placeholder="Choose a player" />
                         </SelectTrigger>
                         <SelectContent>
-                          {featuredPlayers
+                          {displayVideos
                             .filter((p) => p.available)
-                            .map((player) => (
-                              <SelectItem key={player.id} value={player.name}>
-                                {player.name} - ${player.price.toFixed(2)}
+                            .map((video) => (
+                              <SelectItem key={video.id} value={video.playerName}>
+                                {video.playerName} - ${video.price?.toFixed(2)}
                               </SelectItem>
                             ))}
                         </SelectContent>
