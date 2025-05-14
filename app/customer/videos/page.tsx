@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-
 import { useState } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -56,42 +55,42 @@ export default function VideosPage() {
     {
       id: 1,
       name: "Lionel Messi",
-      image: "/placeholder.svg?height=300&width=300&text=Messi",
+      image: "/images/video-thumbnails/messi-greeting.png",
       price: 499.99,
       available: true,
     },
     {
       id: 2,
       name: "Cristiano Ronaldo",
-      image: "/placeholder.svg?height=300&width=300&text=Ronaldo",
+      image: "/images/video-thumbnails/ronaldo-birthday.png",
       price: 499.99,
       available: true,
     },
     {
       id: 3,
       name: "Kylian Mbappé",
-      image: "/placeholder.svg?height=300&width=300&text=Mbappe",
+      image: "/images/video-thumbnails/mbappe-congrats.png",
       price: 399.99,
       available: true,
     },
     {
       id: 4,
       name: "Neymar Jr.",
-      image: "/placeholder.svg?height=300&width=300&text=Neymar",
+      image: "/images/video-thumbnails/neymar-message.png",
       price: 399.99,
       available: false,
     },
     {
       id: 5,
       name: "Kevin De Bruyne",
-      image: "/placeholder.svg?height=300&width=300&text=De+Bruyne",
+      image: "/images/video-thumbnails/de-bruyne-message.png",
       price: 349.99,
       available: true,
     },
     {
       id: 6,
       name: "Erling Haaland",
-      image: "/placeholder.svg?height=300&width=300&text=Haaland",
+      image: "/images/video-thumbnails/haaland-greeting.png",
       price: 399.99,
       available: true,
     },
@@ -154,14 +153,14 @@ export default function VideosPage() {
               </Button>
             </div>
           </div>
-          <div className="relative h-[300px]">
+          <div className="relative h-[300px] rounded-lg overflow-hidden">
             <Image
-              src="/placeholder.svg?height=300&width=600&text=Video+Greeting+Service"
+              src="/images/video-thumbnails/messi-greeting.png"
               alt="Video Greeting Service"
               fill
-              className="object-cover rounded-lg"
+              className="object-cover"
             />
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <div className="bg-black/50 rounded-full p-4">
                 <Play className="h-12 w-12 text-gold" />
               </div>

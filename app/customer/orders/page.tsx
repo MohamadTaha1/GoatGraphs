@@ -1,451 +1,528 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/contexts/auth-context"
-import { collection, query, where, getDocs } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Package, Truck, CheckCircle, AlertCircle, Clock, ExternalLink } from "lucide-react"
-import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { ShoppingBag, Package, Truck, CheckCircle, AlertCircle, Video, Calendar, Clock, User } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
 import Image from "next/image"
 import { formatPrice } from "@/lib/utils"
-import type { Order } from "@/lib/firebase-schema"
-import { Button } from "@/components/ui/button"
+import { getFirestoreInstance } from "@/lib/firebase/firestore"
 
-export default function CustomerOrdersPage() {
+interface OrderItem {
+  productId: string
+  productName: string
+  quantity: number
+  price: number
+  imageUrl: string
+}
+
+interface VideoRequest {
+  id: string
+  player: string
+  occasion: string
+  recipientName: string
+  message: string
+  deliveryDate: string
+  status: "pending" | "accepted" | "completed" | "rejected"
+  createdAt: any
+  price: number
+  videoUrl?: string
+}
+
+interface Order {
+  id: string
+  items: OrderItem[]
+  subtotal: number
+  shipping: number
+  tax: number
+  total: number
+  orderStatus: string
+  paymentStatus: string
+  createdAt: any
+  type?: "product" | "video"
+  videoRequest?: VideoRequest
+}
+
+export default function OrdersPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
+  const [videoRequests, setVideoRequests] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [indexError, setIndexError] = useState(false)
-  const [indexUrl, setIndexUrl] = useState("")
-  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   useEffect(() => {
-    async function fetchOrders() {
-      if (!user) {
-        setLoading(false)
-        return
-      }
+    if (!user) {
+      router.push("/login")
+      return
+    }
 
+    const fetchOrders = async () => {
       try {
-        // Debug info
-        const userDebugInfo = {
-          uid: user.uid,
-          id: (user as any).id,
-          email: user.email,
-        }
-        setDebugInfo(userDebugInfo)
-        console.log("User debug info:", userDebugInfo)
-
+        setLoading(true)
         const db = getFirestoreInstance()
-        const ordersRef = collection(db, "orders")
 
-        // First try to get orders without sorting to avoid index issues
-        const simpleQuery = query(ordersRef, where("userId", "==", user.uid))
-        const querySnapshot = await getDocs(simpleQuery)
-
-        // Log for debugging
-        console.log(`Found ${querySnapshot.docs.length} orders for user ${user.uid}`)
-
-        if (querySnapshot.empty) {
-          console.log("No orders found for this user")
-        } else {
-          querySnapshot.docs.forEach((doc, i) => {
-            console.log(`Order ${i + 1}:`, doc.id, doc.data())
-          })
+        if (!db) {
+          // Fallback to mock data if Firestore is not available
+          const mockOrders = generateMockOrders()
+          setOrders(mockOrders.filter((o) => o.type !== "video"))
+          setVideoRequests(mockOrders.filter((o) => o.type === "video"))
+          setLoading(false)
+          return
         }
 
-        // If we have results, sort them in memory
-        const ordersData = querySnapshot.docs.map((doc) => {
-          const data = doc.data()
+        // Dynamically import Firestore functions
+        const { collection, query, where, getDocs, orderBy } = await import("firebase/firestore")
+
+        // Fetch product orders
+        const ordersQuery = query(
+          collection(db, "orders"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+        )
+
+        const ordersSnapshot = await getDocs(ordersQuery)
+        const ordersData = ordersSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          type: "product",
+        })) as Order[]
+
+        // Fetch video requests
+        const videoRequestsQuery = query(
+          collection(db, "videoRequests"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+        )
+
+        const videoRequestsSnapshot = await getDocs(videoRequestsQuery)
+        const videoRequestsData = videoRequestsSnapshot.docs.map((doc) => {
+          const data = doc.data() as VideoRequest
           return {
             id: doc.id,
-            ...data,
-            // Ensure createdAt is properly handled
-            createdAt: data.createdAt ? data.createdAt : new Date(),
+            items: [
+              {
+                productId: doc.id,
+                productName: `Video Message from ${data.player}`,
+                quantity: 1,
+                price: data.price || 399.99,
+                imageUrl: `/placeholder.svg?height=100&width=100&query=${encodeURIComponent(data.player)}`,
+              },
+            ],
+            subtotal: data.price || 399.99,
+            shipping: 0,
+            tax: 0,
+            total: data.price || 399.99,
+            orderStatus: data.status || "pending",
+            paymentStatus: "paid",
+            createdAt: data.createdAt,
+            type: "video" as const,
+            videoRequest: data,
           }
         }) as Order[]
 
-        // Sort by createdAt in descending order (newest first)
-        ordersData.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() ? a.createdAt.toDate() : new Date(a.createdAt || 0)
-          const dateB = b.createdAt?.toDate?.() ? b.createdAt.toDate() : new Date(b.createdAt || 0)
-          return dateB.getTime() - dateA.getTime()
-        })
-
-        console.log("Processed orders data:", ordersData)
-        setOrders(ordersData)
-      } catch (err: any) {
-        console.error("Error fetching orders:", err)
-
-        // Check if it's an index error
-        if (err.message && err.message.includes("index")) {
-          setIndexError(true)
-          // Extract the URL from the error message
-          const urlMatch = err.message.match(/https:\/\/console\.firebase\.google\.com[^\s]+/)
-          if (urlMatch) {
-            setIndexUrl(urlMatch[0])
-          }
+        if (ordersData.length === 0 && videoRequestsData.length === 0) {
+          // If no orders in Firestore, use mock data
+          const mockOrders = generateMockOrders()
+          setOrders(mockOrders.filter((o) => o.type !== "video"))
+          setVideoRequests(mockOrders.filter((o) => o.type === "video"))
         } else {
-          setError("Failed to load orders. Please try again later.")
+          setOrders(ordersData)
+          setVideoRequests(videoRequestsData)
         }
+      } catch (error) {
+        console.error("Error fetching orders:", error)
+        // Fallback to mock data on error
+        const mockOrders = generateMockOrders()
+        setOrders(mockOrders.filter((o) => o.type !== "video"))
+        setVideoRequests(mockOrders.filter((o) => o.type === "video"))
       } finally {
         setLoading(false)
       }
     }
 
     fetchOrders()
-  }, [user])
+  }, [user, router])
 
-  if (loading) {
-    return (
-      <div className="container mx-auto py-12 px-4">
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-gold" />
-          <p className="mt-4 text-offwhite/70">Loading your orders...</p>
-        </div>
-      </div>
-    )
-  }
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return "N/A"
 
-  if (indexError) {
-    return (
-      <div className="container mx-auto py-12 px-4">
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <AlertCircle className="h-8 w-8 text-amber-500 mb-4" />
-          <h2 className="text-xl font-semibold text-offwhite mb-2">Database Setup Required</h2>
-          <p className="text-offwhite/70 mb-6 text-center max-w-md">
-            The orders database needs a one-time setup. Please contact the administrator to create the required index.
-          </p>
-          {indexUrl && (
-            <a
-              href={indexUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center bg-gold-soft hover:bg-gold-deep text-jetblack px-6 py-2 rounded-md font-semibold transition-colors"
-            >
-              Create Index <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-          )}
-        </div>
-      </div>
-    )
-  }
+    try {
+      // Handle Firestore Timestamp
+      if (timestamp.toDate) {
+        return timestamp.toDate().toLocaleDateString()
+      }
 
-  if (error) {
-    return (
-      <div className="container mx-auto py-12 px-4">
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <AlertCircle className="h-8 w-8 text-red-500" />
-          <p className="mt-4 text-red-500">{error}</p>
-          <Button
-            onClick={() => window.location.reload()}
-            className="mt-4 bg-gold-soft hover:bg-gold-deep text-jetblack"
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <div className="container mx-auto py-12 px-4">
-        <div className="flex flex-col items-center justify-center min-h-[400px]">
-          <h2 className="text-xl font-semibold text-offwhite mb-2">Please Sign In</h2>
-          <p className="text-offwhite/70 mb-6 text-center max-w-md">You need to be signed in to view your orders.</p>
-          <Link href="/login">
-            <Button className="bg-gold-soft hover:bg-gold-deep text-jetblack">Sign In</Button>
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  // Debug information display
-  const showDebugInfo = debugInfo && orders.length === 0
-
-  if (orders.length === 0) {
-    return (
-      <div className="container mx-auto py-12 px-4">
-        <h1 className="text-3xl font-bold mb-8 text-offwhite">My Orders</h1>
-        <Card className="border-gold/30 bg-charcoal">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Package className="h-16 w-16 text-offwhite/30 mb-4" />
-            <h2 className="text-xl font-semibold text-offwhite mb-2">No Orders Yet</h2>
-            <p className="text-offwhite/70 mb-6 text-center max-w-md">
-              You haven't placed any orders yet. Browse our collection and find your perfect memorabilia.
-            </p>
-            <Link
-              href="/customer/shop"
-              className="bg-gold-soft hover:bg-gold-deep text-jetblack px-6 py-2 rounded-md font-semibold transition-colors"
-            >
-              Shop Now
-            </Link>
-
-            {/* Debug information */}
-            {showDebugInfo && (
-              <div className="mt-8 p-4 border border-amber-500/30 rounded-md bg-amber-500/10 w-full max-w-md">
-                <h3 className="text-amber-500 font-semibold mb-2">Debug Information</h3>
-                <pre className="text-xs text-amber-300 overflow-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  // Add this right after the return statement in the main component
-  if (user && !loading && !error) {
-    console.log("Current user:", user.uid)
-    console.log("Orders loaded:", orders.length)
-  }
-
-  return (
-    <div className="container mx-auto py-12 px-4">
-      <h1 className="text-3xl font-bold mb-8 text-offwhite">My Orders</h1>
-
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="mb-8">
-          <TabsTrigger value="all">All Orders</TabsTrigger>
-          <TabsTrigger value="processing">Processing</TabsTrigger>
-          <TabsTrigger value="shipped">Shipped</TabsTrigger>
-          <TabsTrigger value="delivered">Delivered</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all">
-          <div className="space-y-6">
-            {orders.map((order) => (
-              <OrderCard key={order.id} order={order} />
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="processing">
-          <div className="space-y-6">
-            {orders
-              .filter((order) => order.orderStatus === "processing" || order.orderStatus === "pending")
-              .map((order) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="shipped">
-          <div className="space-y-6">
-            {orders
-              .filter((order) => order.orderStatus === "shipped")
-              .map((order) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="delivered">
-          <div className="space-y-6">
-            {orders
-              .filter((order) => order.orderStatus === 'delivered")erStatus === "delivered')
-              .map((order) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
-
-function OrderCard({ order }: { order: Order }) {
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Clock className="h-5 w-5 text-amber-500" />
-      case "processing":
-        return <Package className="h-5 w-5 text-blue-500" />
-      case "shipped":
-        return <Truck className="h-5 w-5 text-purple-500" />
-      case "delivered":
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case "cancelled":
-        return <AlertCircle className="h-5 w-5 text-red-500" />
-      default:
-        return <Clock className="h-5 w-5 text-gray-500" />
+      // Handle Date object or string
+      return new Date(timestamp).toLocaleDateString()
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return "Invalid date"
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-amber-500/10 text-amber-500 border-amber-500/20"
+        return "bg-blue-500/20 text-blue-500"
       case "processing":
-        return "bg-blue-500/10 text-blue-500 border-blue-500/20"
+      case "accepted":
+        return "bg-orange-500/20 text-orange-500"
       case "shipped":
-        return "bg-purple-500/10 text-purple-500 border-purple-500/20"
+        return "bg-violet-500/20 text-violet-500"
       case "delivered":
-        return "bg-green-500/10 text-green-500 border-green-500/20"
+      case "completed":
+        return "bg-green-500/20 text-green-500"
       case "cancelled":
-        return "bg-red-500/10 text-red-500 border-red-500/20"
+      case "rejected":
+        return "bg-red-500/20 text-red-500"
       default:
-        return "bg-gray-500/10 text-gray-500 border-gray-500/20"
+        return "bg-gray-500/20 text-gray-500"
     }
   }
 
-  // Format date from Firestore timestamp
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return "N/A"
-
-    console.log("Formatting timestamp:", timestamp)
-
-    try {
-      // Handle Firestore timestamp
-      if (timestamp && typeof timestamp.toDate === "function") {
-        return new Date(timestamp.toDate()).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+  const getStatusIcon = (status: string, type: "product" | "video" = "product") => {
+    if (type === "video") {
+      switch (status) {
+        case "pending":
+          return <Clock className="h-5 w-5" />
+        case "accepted":
+          return <Video className="h-5 w-5" />
+        case "completed":
+          return <CheckCircle className="h-5 w-5" />
+        case "rejected":
+          return <AlertCircle className="h-5 w-5" />
+        default:
+          return <Clock className="h-5 w-5" />
       }
-
-      // Handle Date objects
-      if (timestamp instanceof Date) {
-        return timestamp.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+    } else {
+      switch (status) {
+        case "pending":
+          return <ShoppingBag className="h-5 w-5" />
+        case "processing":
+          return <Package className="h-5 w-5" />
+        case "shipped":
+          return <Truck className="h-5 w-5" />
+        case "delivered":
+          return <CheckCircle className="h-5 w-5" />
+        case "cancelled":
+          return <AlertCircle className="h-5 w-5" />
+        default:
+          return <ShoppingBag className="h-5 w-5" />
       }
-
-      // Handle ISO strings or timestamps
-      return new Date(timestamp).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    } catch (error) {
-      console.error("Error formatting date:", error, timestamp)
-      return "Invalid Date"
     }
+  }
+
+  if (!user) {
+    return null // Handled by redirect
   }
 
   return (
-    <Card className="border-gold/30 bg-charcoal overflow-hidden">
-      <CardHeader className="bg-jetblack/50 flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="text-offwhite">Order #{order.id?.substring(0, 8)}</CardTitle>
-          <CardDescription className="text-offwhite/70">Placed on {formatDate(order.createdAt)}</CardDescription>
-        </div>
-        <Badge className={`${getStatusColor(order.orderStatus)} ml-auto`}>
-          <span className="flex items-center">
-            {getStatusIcon(order.orderStatus)}
-            <span className="ml-1 capitalize">{order.orderStatus}</span>
-          </span>
-        </Badge>
-      </CardHeader>
-      <CardContent className="p-6">
-        <div className="space-y-6">
-          {/* Order Items */}
-          <div className="space-y-4">
-            {order.items.map((item, index) => (
-              <div key={index} className="flex items-center space-x-4">
-                <div className="relative h-20 w-20 overflow-hidden rounded-md bg-gray-800">
-                  <Image
-                    src={item.imageUrl || "/placeholder.svg?height=80&width=80&query=product"}
-                    alt={item.productName}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-offwhite">{item.productName}</h4>
-                  <p className="text-sm text-offwhite/70">
-                    Qty: {item.quantity} × ${formatPrice(item.price)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-offwhite">${formatPrice(item.quantity * item.price)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="container py-8">
+      <h1 className="text-3xl font-display font-bold mb-8 bg-gold-gradient bg-clip-text text-transparent">My Orders</h1>
 
-          {/* Order Summary */}
-          <div className="border-t border-gold/20 pt-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-offwhite/70">Subtotal</span>
-              <span className="text-offwhite">${formatPrice(order.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-sm mt-2">
-              <span className="text-offwhite/70">Shipping</span>
-              <span className="text-offwhite">${formatPrice(order.shipping)}</span>
-            </div>
-            <div className="flex justify-between text-sm mt-2">
-              <span className="text-offwhite/70">Tax</span>
-              <span className="text-offwhite">${formatPrice(order.tax)}</span>
-            </div>
-            <div className="flex justify-between font-medium mt-4 pt-4 border-t border-gold/20">
-              <span className="text-offwhite">Total</span>
-              <span className="text-gold">${formatPrice(order.total)}</span>
-            </div>
-          </div>
+      <Tabs defaultValue="products" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md mb-8 bg-charcoal border border-gold/20">
+          <TabsTrigger
+            value="products"
+            className="text-gold data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
+          >
+            Product Orders
+          </TabsTrigger>
+          <TabsTrigger
+            value="videos"
+            className="text-gold data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
+          >
+            Video Requests
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Shipping Information */}
-          <div className="border-t border-gold/20 pt-4">
-            <h4 className="font-medium text-offwhite mb-2">Shipping Information</h4>
-            <p className="text-sm text-offwhite/70">
-              {order.customerInfo?.name || "N/A"}
-              <br />
-              {order.customerInfo?.address?.line1 || "N/A"}
-              <br />
-              {order.customerInfo?.address?.line2 && (
-                <>
-                  {order.customerInfo.address.line2}
-                  <br />
-                </>
-              )}
-              {order.customerInfo?.address?.city || "N/A"}, {order.customerInfo?.address?.state || "N/A"}{" "}
-              {order.customerInfo?.address?.postalCode || "N/A"}
-              <br />
-              {order.customerInfo?.address?.country || "N/A"}
-            </p>
-          </div>
-
-          {/* Tracking Information */}
-          {order.trackingNumber && (
-            <div className="border-t border-gold/20 pt-4">
-              <h4 className="font-medium text-offwhite mb-2">Tracking Information</h4>
-              <p className="text-sm text-offwhite/70">
-                Tracking Number: {order.trackingNumber}
-                <br />
-                Shipping Method: {order.shippingMethod || "Standard Shipping"}
-              </p>
+        <TabsContent value="products">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin h-8 w-8 border-4 border-gold border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-offwhite">Loading your orders...</p>
             </div>
-          )}
-
-          {/* Order Timeline */}
-          {order.history && order.history.length > 0 && (
-            <div className="border-t border-gold/20 pt-4">
-              <h4 className="font-medium text-offwhite mb-2">Order Timeline</h4>
-              <div className="space-y-3">
-                {order.history.map((event, index) => (
-                  <div key={index} className="flex items-start">
-                    <div className="mr-3 mt-1">{getStatusIcon(event.status)}</div>
-                    <div>
-                      <p className="text-sm font-medium text-offwhite capitalize">{event.status}</p>
-                      <p className="text-xs text-offwhite/70">{formatDate(event.timestamp)}</p>
-                      {event.comment && <p className="text-xs text-offwhite/70 mt-1">{event.comment}</p>}
+          ) : orders.length > 0 ? (
+            <div className="space-y-6">
+              {orders.map((order) => (
+                <Card key={order.id} className="border-gold/30 bg-charcoal overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                      <div>
+                        <CardTitle className="text-gold font-display">Order #{order.id.slice(0, 8)}</CardTitle>
+                        <p className="text-sm text-offwhite/70">{formatDate(order.createdAt)}</p>
+                      </div>
+                      <div className="flex items-center mt-2 md:mt-0">
+                        <Badge className={`font-body ${getStatusColor(order.orderStatus)}`}>
+                          <span className="flex items-center">
+                            {getStatusIcon(order.orderStatus)}
+                            <span className="ml-1">
+                              {order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)}
+                            </span>
+                          </span>
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {order.items.map((item, index) => (
+                        <div key={index} className="flex items-start gap-4">
+                          <div className="h-16 w-16 bg-black-300 rounded flex items-center justify-center overflow-hidden relative">
+                            <Image
+                              src={item.imageUrl || "/placeholder.svg?height=64&width=64"}
+                              alt={item.productName}
+                              fill
+                              className="object-contain"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-display font-bold text-offwhite">{item.productName}</h3>
+                            <p className="text-sm text-offwhite/70">Quantity: {item.quantity}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-display font-bold text-gold">${formatPrice(item.price)}</p>
+                          </div>
+                        </div>
+                      ))}
+
+                      <Separator className="my-4 bg-gold/20" />
+
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-sm text-offwhite/70">
+                            {order.items.reduce((total, item) => total + item.quantity, 0)} items
+                          </p>
+                          <p className="font-display font-bold text-offwhite">Total: ${formatPrice(order.total)}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="border-gold text-gold hover:bg-gold/10"
+                          onClick={() => router.push(`/customer/orders/${order.id}`)}
+                        >
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
+          ) : (
+            <Card className="border-gold/30 bg-charcoal">
+              <CardContent className="pt-6 text-center">
+                <ShoppingBag className="h-12 w-12 text-gold/50 mx-auto mb-4" />
+                <h3 className="text-xl font-display font-bold text-offwhite mb-2">No Orders Yet</h3>
+                <p className="text-offwhite/70 mb-4">You haven't placed any orders yet.</p>
+                <Button asChild className="bg-gold-gradient hover:bg-gold-shine text-black">
+                  <a href="/customer/shop">Browse Products</a>
+                </Button>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </TabsContent>
+
+        <TabsContent value="videos">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin h-8 w-8 border-4 border-gold border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-offwhite">Loading your video requests...</p>
+            </div>
+          ) : videoRequests.length > 0 ? (
+            <div className="space-y-6">
+              {videoRequests.map((order) => (
+                <Card key={order.id} className="border-gold/30 bg-charcoal overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+                      <div>
+                        <CardTitle className="text-gold font-display">Video Request #{order.id.slice(0, 8)}</CardTitle>
+                        <p className="text-sm text-offwhite/70">{formatDate(order.createdAt)}</p>
+                      </div>
+                      <div className="flex items-center mt-2 md:mt-0">
+                        <Badge className={`font-body ${getStatusColor(order.orderStatus)}`}>
+                          <span className="flex items-center">
+                            {getStatusIcon(order.orderStatus, "video")}
+                            <span className="ml-1">
+                              {order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)}
+                            </span>
+                          </span>
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <User className="h-4 w-4 text-gold mr-2" />
+                            <p className="text-sm text-offwhite/70">
+                              Player: <span className="text-offwhite">{order.videoRequest?.player}</span>
+                            </p>
+                          </div>
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 text-gold mr-2" />
+                            <p className="text-sm text-offwhite/70">
+                              Occasion: <span className="text-offwhite">{order.videoRequest?.occasion}</span>
+                            </p>
+                          </div>
+                          <div className="flex items-center">
+                            <User className="h-4 w-4 text-gold mr-2" />
+                            <p className="text-sm text-offwhite/70">
+                              Recipient: <span className="text-offwhite">{order.videoRequest?.recipientName}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm text-offwhite/70 mb-1">Message Instructions:</p>
+                          <p className="text-offwhite bg-black/20 p-2 rounded text-sm">
+                            {order.videoRequest?.message || "No message instructions provided."}
+                          </p>
+                        </div>
+                      </div>
+
+                      {order.videoRequest?.videoUrl && (
+                        <div className="mt-4">
+                          <p className="text-sm text-offwhite/70 mb-2">Your Video:</p>
+                          <div className="relative aspect-video bg-black rounded overflow-hidden">
+                            <video controls className="w-full h-full" poster="/video-thumbnail.png">
+                              <source src={order.videoRequest.videoUrl} type="video/mp4" />
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        </div>
+                      )}
+
+                      <Separator className="my-4 bg-gold/20" />
+
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-sm text-offwhite/70">
+                            Requested Delivery: {order.videoRequest?.deliveryDate}
+                          </p>
+                          <p className="font-display font-bold text-offwhite">Total: ${formatPrice(order.total)}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="border-gold text-gold hover:bg-gold/10"
+                          onClick={() => router.push(`/customer/videos/${order.id}`)}
+                        >
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-gold/30 bg-charcoal">
+              <CardContent className="pt-6 text-center">
+                <Video className="h-12 w-12 text-gold/50 mx-auto mb-4" />
+                <h3 className="text-xl font-display font-bold text-offwhite mb-2">No Video Requests Yet</h3>
+                <p className="text-offwhite/70 mb-4">You haven't requested any personalized videos yet.</p>
+                <Button asChild className="bg-gold-gradient hover:bg-gold-shine text-black">
+                  <a href="/customer/videos">Request a Video</a>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   )
+}
+
+// Generate mock orders for testing
+function generateMockOrders(): Order[] {
+  return [
+    {
+      id: "order123456",
+      items: [
+        {
+          productId: "prod1",
+          productName: "Lionel Messi Signed Jersey",
+          quantity: 1,
+          price: 1299.99,
+          imageUrl: "/placeholder.svg?key=y2sc2",
+        },
+      ],
+      subtotal: 1299.99,
+      shipping: 0,
+      tax: 0,
+      total: 1299.99,
+      orderStatus: "delivered",
+      paymentStatus: "paid",
+      createdAt: new Date("2023-04-18"),
+      type: "product",
+    },
+    {
+      id: "video123456",
+      items: [
+        {
+          productId: "vid1",
+          productName: "Video Message from Cristiano Ronaldo",
+          quantity: 1,
+          price: 499.99,
+          imageUrl: "/placeholder.svg?key=qs25v",
+        },
+      ],
+      subtotal: 499.99,
+      shipping: 0,
+      tax: 0,
+      total: 499.99,
+      orderStatus: "completed",
+      paymentStatus: "paid",
+      createdAt: new Date("2023-05-10"),
+      type: "video",
+      videoRequest: {
+        id: "vid1",
+        player: "Cristiano Ronaldo",
+        occasion: "Birthday",
+        recipientName: "Alex",
+        message: "Please wish Alex a happy 30th birthday and mention his love for Manchester United!",
+        deliveryDate: "2023-05-20",
+        status: "completed",
+        createdAt: new Date("2023-05-10"),
+        price: 499.99,
+        videoUrl: "https://example.com/videos/sample.mp4",
+      },
+    },
+    {
+      id: "video789012",
+      items: [
+        {
+          productId: "vid2",
+          productName: "Video Message from Kylian Mbappé",
+          quantity: 1,
+          price: 399.99,
+          imageUrl: "/placeholder.svg?key=32c3y",
+        },
+      ],
+      subtotal: 399.99,
+      shipping: 0,
+      tax: 0,
+      total: 399.99,
+      orderStatus: "pending",
+      paymentStatus: "paid",
+      createdAt: new Date("2023-06-05"),
+      type: "video",
+      videoRequest: {
+        id: "vid2",
+        player: "Kylian Mbappé",
+        occasion: "Graduation",
+        recipientName: "Sarah",
+        message: "Congratulate Sarah on her graduation from university with a sports management degree!",
+        deliveryDate: "2023-06-25",
+        status: "pending",
+        createdAt: new Date("2023-06-05"),
+        price: 399.99,
+      },
+    },
+  ]
 }

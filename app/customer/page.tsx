@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { ArrowRight, Award, CheckCircle, ShoppingBag, Star } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { CategoryShowcase } from "@/components/category-showcase"
 
 // Types for our Firebase data
 interface Banner {
@@ -49,7 +50,8 @@ interface Category {
   id: string
   name: string
   imageUrl: string
-  featured: boolean
+  description?: string
+  featured?: boolean
 }
 
 // Helper function to safely format price
@@ -140,9 +142,9 @@ export default function CustomerHome() {
           setTestimonials([])
         }
 
-        // Fetch featured categories - simplified query
+        // Fetch ALL categories instead of just featured ones
         try {
-          const categoriesQuery = query(collection(db, "categories"), where("featured", "==", true))
+          const categoriesQuery = query(collection(db, "categories"))
           const categoriesSnapshot = await getDocs(categoriesQuery)
           const categoriesData = categoriesSnapshot.docs.map((doc) => ({
             id: doc.id,
@@ -329,31 +331,8 @@ export default function CustomerHome() {
         </div>
       )}
 
-      {/* Categories */}
-      {categories.length > 0 && (
-        <div className="container mb-16">
-          <h2 className="text-3xl font-display font-bold text-white mb-8">Shop by Category</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categories.map((category) => (
-              <Link
-                key={category.id}
-                href={`/customer/shop?category=${category.id}`}
-                className="relative h-40 rounded-lg overflow-hidden group"
-              >
-                <Image
-                  src={category.imageUrl || "/placeholder.svg"}
-                  alt={category.name}
-                  fill
-                  className="object-cover transition-transform group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <h3 className="text-xl font-display font-medium text-white">{category.name}</h3>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Categories Showcase */}
+      <CategoryShowcase />
 
       {/* Top Selling Products */}
       {topSelling.length > 0 && (
