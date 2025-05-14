@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -72,7 +72,6 @@ export default function LoginPage() {
 
           {error && (
             <Alert className="mb-6 bg-red-900/20 border-red-900/30">
-              <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertDescription className="text-red-500">{error}</AlertDescription>
             </Alert>
           )}
