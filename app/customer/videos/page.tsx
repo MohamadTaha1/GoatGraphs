@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useVideos } from "@/hooks/use-videos"
 import { Play, Clock, Calendar, User, MessageSquare, Loader2, Info, ChevronRight } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function VideosPage() {
   const router = useRouter()

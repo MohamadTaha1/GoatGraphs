@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
-import { Loader2 } from "lucide-react"
+import { AlertCircle, Loader2 } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -72,6 +72,7 @@ export default function LoginPage() {
 
           {error && (
             <Alert className="mb-6 bg-red-900/20 border-red-900/30">
+              <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertDescription className="text-red-500">{error}</AlertDescription>
             </Alert>
           )}
@@ -124,33 +125,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          {/* Demo accounts section */}
-          <div className="mt-6 border-t border-gold/20 pt-4">
-            <h3 className="text-sm font-medium text-offwhite mb-2">Demo Accounts</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <Button
-                variant="outline"
-                className="justify-start text-left border-gold/30 text-gold hover:bg-gold/10"
-                onClick={() => {
-                  setEmail("customer@example.com")
-                  setPassword("password123")
-                }}
-              >
-                Customer: customer@example.com / password123
-              </Button>
-              <Button
-                variant="outline"
-                className="justify-start text-left border-gold/30 text-gold hover:bg-gold/10"
-                onClick={() => {
-                  setEmail("admin@legendarysignatures.com")
-                  setPassword("admin123")
-                }}
-              >
-                Admin: admin@legendarysignatures.com / admin123
-              </Button>
-            </div>
-          </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-center w-full">
@@ -162,7 +136,7 @@ export default function LoginPage() {
           <Button
             variant="outline"
             className="w-full border-gold/30 text-gold hover:bg-gold/10"
-            onClick={() => router.push("/customer")}
+            onClick={() => router.push("/")}
           >
             Continue as Guest
           </Button>
