@@ -10,23 +10,29 @@ import { Loader2 } from "lucide-react"
 interface ProtectedRouteProps {
   children: React.ReactNode
   requiredRole?: "admin" | "customer" | undefined
+  allowGuest?: boolean
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requiredRole, allowGuest = false }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname() || "" // Provide default empty string if pathname is undefined
 
   useEffect(() => {
     if (!isLoading) {
-      // If not logged in, redirect to login
-      if (!user) {
+      // If guest browsing is allowed, don't redirect
+      if (allowGuest && !user) {
+        return
+      }
+
+      // If not logged in and guest browsing is not allowed, redirect to login
+      if (!user && !allowGuest) {
         router.push("/login")
         return
       }
 
       // If role is required and user doesn't have it, redirect
-      if (requiredRole && user.role !== requiredRole) {
+      if (user && requiredRole && user.role !== requiredRole) {
         if (user.role === "admin" || user.role === "superadmin") {
           router.push("/admin")
         } else {
@@ -36,7 +42,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       }
 
       // Special case for root path
-      if (pathname === "/") {
+      if (pathname === "/" && user) {
         if (user.role === "admin" || user.role === "superadmin") {
           router.push("/admin")
         } else {
@@ -44,7 +50,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         }
       }
     }
-  }, [user, isLoading, router, requiredRole, pathname])
+  }, [user, isLoading, router, requiredRole, pathname, allowGuest])
 
   if (isLoading) {
     return (
@@ -57,6 +63,12 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     )
   }
 
+  // Allow access for guests if allowGuest is true
+  if (!user && allowGuest) {
+    return <>{children}</>
+  }
+
+  // Otherwise, follow the original logic
   if (!user) {
     return null // Will be redirected
   }

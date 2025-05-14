@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -23,21 +23,15 @@ export default function CheckoutPage() {
   const { user } = useAuth()
   const { items = [], subtotal = 0, clearCart } = useCart()
   const { toast } = useToast()
+
   const [paymentMethod, setPaymentMethod] = useState("credit-card")
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [orderId, setOrderId] = useState<number | null>(null)
-
-  // Ensure numeric values with defaults
-  const safeSubtotal = typeof subtotal === "number" ? subtotal : 0
-  const deliveryFee = safeSubtotal >= 1000 ? 0 : 50
-  const tax = safeSubtotal * 0.05 // 5% tax
-  const total = safeSubtotal + deliveryFee + tax
-
   const [formData, setFormData] = useState({
-    firstName: user?.displayName?.split(" ")[0] || "",
-    lastName: user?.displayName?.split(" ").slice(1).join(" ") || "",
-    email: user?.email || "",
+    firstName: "",
+    lastName: "",
+    email: "",
     phone: "",
     address: "",
     city: "Dubai",
@@ -48,6 +42,35 @@ export default function CheckoutPage() {
     cvv: "",
     notes: "",
   })
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user) {
+      router.push("/login?returnUrl=/customer/checkout&action=checkout")
+    }
+  }, [user, router])
+
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        firstName: user.displayName?.split(" ")[0] || "",
+        lastName: user.displayName?.split(" ").slice(1).join(" ") || "",
+        email: user.email || "",
+      }))
+    }
+  }, [user])
+
+  // If not authenticated or no items, redirect
+  if (!user || !items || items.length === 0) {
+    return null
+  }
+
+  // Ensure numeric values with defaults
+  const safeSubtotal = typeof subtotal === "number" ? subtotal : 0
+  const deliveryFee = safeSubtotal >= 1000 ? 0 : 50
+  const tax = safeSubtotal * 0.05 // 5% tax
+  const total = safeSubtotal + deliveryFee + tax
 
   const handleChange = (e) => {
     const { name, value } = e.target

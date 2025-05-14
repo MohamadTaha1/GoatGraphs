@@ -1,101 +1,119 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
-import Link from "next/link"
+import { Loader2 } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const { login } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Get return URL and action from query parameters
+  const returnUrl = searchParams.get("returnUrl") || "/customer"
+  const action = searchParams.get("action")
+
+  // Action messages to display
+  const actionMessages = {
+    addToCart: "Please log in to add items to your cart.",
+    requestVideo: "Please log in to request a personalized video.",
+    checkout: "Please log in to complete your purchase.",
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
     try {
       const success = await login(email, password)
-
-      if (!success) {
-        setError("Invalid email or password")
-      }
-      // No need to redirect here, the auth context will handle it
-    } catch (err: any) {
-      console.error("Login error:", err)
-      if (err.code === "auth/invalid-credential") {
-        setError("Invalid email or password")
+      if (success) {
+        // Redirect to the return URL if provided
+        router.push(returnUrl)
       } else {
-        setError(`An error occurred during login: ${err.message}`)
+        setError("Invalid email or password")
       }
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("An error occurred during login")
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-jetblack py-12">
-      <Card className="w-[400px] border-gold/30 bg-charcoal">
+    <div className="min-h-screen flex items-center justify-center bg-jetblack py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md border-gold/30 bg-charcoal">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-display text-center bg-gold-gradient bg-clip-text text-transparent">
-            Login
+          <CardTitle className="text-2xl font-display font-bold text-center text-gold">
+            Sign in to your account
           </CardTitle>
-          <CardDescription className="text-center font-body text-offwhite/70">
-            Enter your credentials to access your account
+          <CardDescription className="text-center text-offwhite/70">
+            Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
+          {action && actionMessages[action] && (
+            <Alert className="mb-6 bg-gold/10 border-gold/30">
+              <AlertDescription className="text-gold">{actionMessages[action]}</AlertDescription>
+            </Alert>
+          )}
+
           {error && (
-            <Alert variant="destructive" className="bg-red-900/20 border-red-900/50">
-              <AlertCircle className="h-4 w-4 text-red-500" />
+            <Alert className="mb-6 bg-red-900/20 border-red-900/30">
               <AlertDescription className="text-red-500">{error}</AlertDescription>
             </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="font-body text-offwhite">
+              <Label htmlFor="email" className="text-offwhite">
                 Email
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="email@example.com"
+                placeholder="your.email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="border-gold/30 bg-jetblack text-offwhite"
+                className="bg-jetblack border-gold/30 text-offwhite"
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="font-body text-offwhite">
+                <Label htmlFor="password" className="text-offwhite">
                   Password
                 </Label>
+                <Link href="#" className="text-sm text-gold hover:underline">
+                  Forgot password?
+                </Link>
               </div>
               <Input
                 id="password"
                 type="password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="border-gold/30 bg-jetblack text-offwhite"
+                className="bg-jetblack border-gold/30 text-offwhite"
               />
             </div>
             <Button
               type="submit"
-              className="w-full bg-gold-soft hover:bg-gold-deep text-jetblack font-body"
               disabled={isLoading}
+              className="w-full bg-gold-gradient hover:bg-gold-shine bg-[length:200%_auto] hover:animate-gold-shimmer text-black font-body"
             >
               {isLoading ? (
                 <>
@@ -106,19 +124,48 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          {/* Demo accounts section */}
+          <div className="mt-6 border-t border-gold/20 pt-4">
+            <h3 className="text-sm font-medium text-offwhite mb-2">Demo Accounts</h3>
+            <div className="grid grid-cols-1 gap-2">
+              <Button
+                variant="outline"
+                className="justify-start text-left border-gold/30 text-gold hover:bg-gold/10"
+                onClick={() => {
+                  setEmail("customer@example.com")
+                  setPassword("password123")
+                }}
+              >
+                Customer: customer@example.com / password123
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start text-left border-gold/30 text-gold hover:bg-gold/10"
+                onClick={() => {
+                  setEmail("admin@legendarysignatures.com")
+                  setPassword("admin123")
+                }}
+              >
+                Admin: admin@legendarysignatures.com / admin123
+              </Button>
+            </div>
+          </div>
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <div className="text-center">
-            <p className="text-sm text-offwhite/70 font-body mb-2">
-              Don't have an account?{" "}
-              <Link href="/register" className="text-gold hover:underline">
-                Register
-              </Link>
-            </p>
-            <Link href="/" className="text-gold hover:underline text-sm font-body">
-              Return to main website
+        <CardFooter className="flex flex-col space-y-4">
+          <div className="text-center w-full">
+            <span className="text-offwhite/70">Don't have an account? </span>
+            <Link href="/register" className="text-gold hover:underline">
+              Sign up
             </Link>
           </div>
+          <Button
+            variant="outline"
+            className="w-full border-gold/30 text-gold hover:bg-gold/10"
+            onClick={() => router.push("/customer")}
+          >
+            Continue as Guest
+          </Button>
         </CardFooter>
       </Card>
     </div>

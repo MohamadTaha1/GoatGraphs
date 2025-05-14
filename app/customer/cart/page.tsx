@@ -10,12 +10,27 @@ import { Separator } from "@/components/ui/separator"
 import { Trash2, ShoppingBag, ArrowRight } from "lucide-react"
 import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 
 export default function CartPage() {
   const { items = [], removeItem, updateQuantity, clearCart, total = 0 } = useCart()
   const { toast } = useToast()
   const [promoCode, setPromoCode] = useState("")
   const [isApplyingPromo, setIsApplyingPromo] = useState(false)
+  const { user } = useAuth()
+  const router = useRouter()
+
+  // Redirect to login if user tries to checkout
+  const handleCheckout = () => {
+    if (!user) {
+      const returnUrl = encodeURIComponent("/customer/checkout")
+      router.push(`/login?returnUrl=${returnUrl}&action=checkout`)
+      return
+    }
+
+    router.push("/customer/checkout")
+  }
 
   // Calculate subtotal safely
   const subtotal = items.reduce((sum, item) => {
@@ -203,12 +218,10 @@ export default function CartPage() {
             </CardContent>
             <CardFooter>
               <Button
-                asChild
                 className="w-full bg-gold-gradient hover:bg-gold-shine bg-[length:200%_auto] hover:animate-gold-shimmer text-black font-body"
+                onClick={handleCheckout}
               >
-                <Link href="/customer/checkout">
-                  Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardFooter>
           </Card>

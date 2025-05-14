@@ -9,7 +9,7 @@ export default function CustomerLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ProtectedRoute requiredRole="customer">
+    <ProtectedRoute requiredRole="customer" allowGuest={true}>
       <div className="flex min-h-screen flex-col">
         <Header />
         <main className="flex-1">{children}</main>

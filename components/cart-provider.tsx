@@ -138,6 +138,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Add item to cart
   const addItem = (item: Omit<CartItem, "quantity" | "id">) => {
+    // Check if user is logged in
+    if (!user) {
+      // Redirect to login page with return URL
+      const returnUrl = encodeURIComponent(window.location.pathname)
+      window.location.href = `/login?returnUrl=${returnUrl}&action=addToCart`
+      return
+    }
+
     setCart((prevCart) => {
       const existingItemIndex = prevCart.items.findIndex((i) => i.productId === item.productId)
       let newItems: CartItem[]

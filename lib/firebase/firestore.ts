@@ -22,3 +22,6 @@ export function getFirestoreInstance() {
 
   return db
 }
+
+// Export db directly for compatibility with existing code
+export { db }

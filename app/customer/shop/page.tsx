@@ -15,12 +15,14 @@ import { useProducts } from "@/hooks/use-products"
 import { useCart } from "@/components/cart-provider"
 import { formatPrice } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function ShopPage() {
   const router = useRouter()
   const { products, loading, error } = useProducts()
   const { addItem } = useCart()
   const { toast } = useToast()
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [priceRange, setPriceRange] = useState("all")
   const [selectedTypes, setSelectedTypes] = useState({
@@ -94,6 +96,13 @@ export default function ShopPage() {
   // Handle add to cart
   const handleAddToCart = (product) => {
     if (!product) return
+
+    if (!user) {
+      // Redirect to login page with return URL
+      const returnUrl = encodeURIComponent(window.location.pathname)
+      router.push(`/login?returnUrl=${returnUrl}&action=addToCart`)
+      return
+    }
 
     // Ensure we have a valid product with required fields
     addItem({

@@ -85,3 +85,6 @@ export async function getFileURL(path: string): Promise<string> {
     throw error
   }
 }
+
+// Export storage directly for compatibility with existing code
+export const storage = typeof window !== "undefined" ? getStorageInstance() : null

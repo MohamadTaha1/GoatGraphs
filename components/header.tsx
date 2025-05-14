@@ -290,8 +290,8 @@ export function Header() {
                 <Search className="h-5 w-5" />
               </Button>
 
-              {/* User dropdown */}
-              {user && (
+              {/* User dropdown or login/register buttons */}
+              {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="text-gold/70 hover:text-gold hover:bg-gold/10">
@@ -390,25 +390,31 @@ export function Header() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" className="text-gold/70 hover:text-gold hover:bg-gold/10" asChild>
+                    <Link href="/login">
+                      <User className="mr-2 h-4 w-4" />
+                      Login
+                    </Link>
+                  </Button>
+                  <Button className="bg-gold text-black hover:bg-gold/80" asChild>
+                    <Link href="/register">Register</Link>
+                  </Button>
+                </div>
               )}
 
-              {/* Cart button - only show for customers */}
-              {(!user || user.role === "customer") && (
-                <Link href={`${basePath}/cart`}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-gold/70 hover:text-gold hover:bg-gold/10 relative"
-                  >
-                    <ShoppingCart className="h-5 w-5" />
-                    {itemCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-gold text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                        {itemCount}
-                      </span>
-                    )}
-                  </Button>
-                </Link>
-              )}
+              {/* Cart button - show for everyone */}
+              <Link href={`${basePath}/cart`}>
+                <Button variant="ghost" size="icon" className="text-gold/70 hover:text-gold hover:bg-gold/10 relative">
+                  <ShoppingCart className="h-5 w-5" />
+                  {itemCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-gold text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      {itemCount}
+                    </span>
+                  )}
+                </Button>
+              </Link>
 
               {/* Mobile menu button */}
               <Button
