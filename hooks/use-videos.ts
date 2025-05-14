@@ -37,7 +37,6 @@ export function useVideos(options: UseVideosOptions = {}) {
     async function fetchVideos() {
       try {
         setLoading(true)
-        console.log("Fetching videos with options:", options)
 
         const videosQuery = collection(db, "videos")
         const constraints = []
@@ -59,16 +58,11 @@ export function useVideos(options: UseVideosOptions = {}) {
         const q = query(videosQuery, ...constraints)
         const querySnapshot = await getDocs(q)
 
-        const videosData = querySnapshot.docs.map((doc) => {
-          const data = doc.data()
-          console.log("Video data:", data)
-          return {
-            id: doc.id,
-            ...data,
-          }
-        }) as Video[]
+        const videosData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Video[]
 
-        console.log("Fetched videos:", videosData)
         setVideos(videosData)
         setError(null)
       } catch (err) {
