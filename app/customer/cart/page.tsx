@@ -1,169 +1,180 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Trash2, ShoppingBag, ArrowRight } from "lucide-react"
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Tag } from "lucide-react"
 import { useCart } from "@/components/cart-provider"
+import { useAuth } from "@/hooks/use-auth"
+import { formatPrice } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/contexts/auth-context"
-import { useRouter } from "next/navigation"
-import AuthRequiredModal from "@/components/auth-required-modal"
+import { AuthRequiredModal } from "@/components/auth-required-modal"
 
 export default function CartPage() {
-  const { items = [], removeItem, updateQuantity, clearCart, total = 0 } = useCart()
+  const router = useRouter()
+  const { items, removeItem, updateQuantity, clearCart, subtotal } = useCart()
+  const { user } = useAuth()
   const { toast } = useToast()
   const [promoCode, setPromoCode] = useState("")
-  const [isApplyingPromo, setIsApplyingPromo] = useState(false)
-  const { user, isGuest } = useAuth()
-  const router = useRouter()
+  const [discount, setDiscount] = useState(0)
   const [showAuthModal, setShowAuthModal] = useState(false)
 
-  useEffect(() => {
-    // Check if user is a guest
-    if (isGuest) {
-      setShowAuthModal(true)
-    }
-  }, [isGuest])
+  // Calculate shipping (free over $100)
+  const shipping = subtotal > 100 ? 0 : 9.99
 
-  // Redirect to login if user tries to checkout
+  // Calculate tax (8%)
+  const tax = (subtotal - discount) * 0.08
+
+  // Calculate total
+  const total = subtotal - discount + shipping + tax
+
+  // Handle quantity change
+  const handleQuantityChange = (productId: string, newQuantity: number) => {
+    if (newQuantity < 1) return
+    updateQuantity(productId, newQuantity)
+  }
+
+  // Handle promo code application
+  const applyPromoCode = () => {
+    if (!promoCode.trim()) return
+
+    // Example promo codes
+    if (promoCode.toUpperCase() === "WELCOME10") {
+      const discountAmount = subtotal * 0.1 // 10% discount
+      setDiscount(discountAmount)
+      toast({
+        title: "Promo code applied",
+        description: "10% discount has been applied to your order.",
+      })
+    } else if (promoCode.toUpperCase() === "FREESHIP") {
+      setDiscount(shipping)
+      toast({
+        title: "Promo code applied",
+        description: "Free shipping has been applied to your order.",
+      })
+    } else {
+      toast({
+        title: "Invalid promo code",
+        description: "The promo code you entered is invalid or expired.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle checkout
   const handleCheckout = () => {
-    if (!user || isGuest) {
+    if (!user) {
       setShowAuthModal(true)
       return
     }
 
+    // Proceed to checkout
     router.push("/customer/checkout")
   }
 
-  // Calculate subtotal safely
-  const subtotal = items.reduce((sum, item) => {
-    const itemPrice = item.price || 0
-    const itemQuantity = item.quantity || 0
-    return sum + itemPrice * itemQuantity
-  }, 0)
-
-  const deliveryFee = subtotal >= 1000 ? 0 : 50
-  const totalWithDelivery = subtotal + deliveryFee
-
-  const handleQuantityChange = (id: string, newQuantity: number) => {
-    if (newQuantity > 0) {
-      updateQuantity(id, newQuantity)
-    }
-  }
-
-  const handleRemoveItem = (id: string) => {
-    removeItem(id)
-    toast({
-      title: "Item removed",
-      description: "The item has been removed from your cart.",
-    })
-  }
-
-  const handleApplyPromoCode = () => {
-    setIsApplyingPromo(true)
-    setTimeout(() => {
-      setIsApplyingPromo(false)
-      toast({
-        title: "Invalid promo code",
-        description: "The promo code you entered is invalid or has expired.",
-      })
-    }, 1000)
-  }
-
-  if (!items || items.length === 0) {
+  // If cart is empty
+  if (items.length === 0) {
     return (
-      <div className="container py-16">
-        <div className="max-w-2xl mx-auto text-center">
-          <ShoppingBag className="h-16 w-16 mx-auto mb-6 text-gold-500" />
-          <h1 className="text-3xl font-display font-bold mb-4 bg-gold-gradient bg-clip-text text-transparent">
-            Your Cart is Empty
-          </h1>
-          <p className="text-gray-400 mb-8 font-body">Looks like you haven't added any jerseys to your cart yet.</p>
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center py-16">
+          <ShoppingCart className="h-16 w-16 mx-auto text-gold/50 mb-4" />
+          <h1 className="text-3xl font-display font-bold mb-4 text-gold">Your Cart is Empty</h1>
+          <p className="text-offwhite/70 mb-8 max-w-md mx-auto">
+            Looks like you haven't added any items to your cart yet. Browse our collection to find authentic signed
+            memorabilia.
+          </p>
           <Button
-            asChild
-            className="bg-gold-gradient hover:bg-gold-shine bg-[length:200%_auto] hover:animate-gold-shimmer text-black font-body"
+            onClick={() => router.push("/customer/shop")}
+            className="bg-gold-soft hover:bg-gold-deep text-jetblack"
           >
-            <Link href="/customer/shop">Continue Shopping</Link>
+            Continue Shopping
           </Button>
         </div>
-
-        {/* Auth Modal */}
-        <AuthRequiredModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          actionType="cart"
-          returnUrl="/customer/cart"
-        />
       </div>
     )
   }
 
   return (
-    <div className="container py-8">
+    <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-display font-bold mb-8 bg-gold-gradient bg-clip-text text-transparent">
         Your Shopping Cart
       </h1>
 
-      <div className="flex flex-col lg:flex-row gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cart Items */}
-        <div className="lg:w-2/3 space-y-4">
+        <div className="lg:col-span-2 space-y-4">
           {items.map((item) => (
-            <Card key={item.id} className="border border-gold-700">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="relative h-32 w-32 flex-shrink-0">
-                    <Image src={item.image || "/placeholder.svg"} alt={item.name} fill className="object-contain" />
+            <Card key={item.productId} className="border-gold/30 bg-charcoal overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex flex-col sm:flex-row">
+                  <div className="relative w-full sm:w-32 h-32 bg-jetblack">
+                    <Image
+                      src={item.image || "/placeholder.svg?height=128&width=128"}
+                      alt={item.name}
+                      fill
+                      className="object-cover"
+                    />
                   </div>
-                  <div className="flex-grow">
-                    <div className="flex flex-col sm:flex-row sm:justify-between">
+                  <div className="flex-1 p-4">
+                    <div className="flex flex-col sm:flex-row justify-between">
                       <div>
-                        <h3 className="font-display font-bold text-lg">{item.name}</h3>
-                        <p className="text-gray-500 font-body">{item.team}</p>
-                        {item.size && <p className="text-gray-500 font-body">Size: {item.size}</p>}
+                        <h3 className="font-display text-lg font-bold text-offwhite mb-1">{item.name}</h3>
+                        {item.type === "preorder" && (
+                          <span className="inline-block bg-gold/20 text-gold text-xs px-2 py-1 rounded mb-2">
+                            Pre-Order
+                          </span>
+                        )}
+                        {item.type === "preorder" && item.details && (
+                          <div className="text-sm text-offwhite/70 space-y-1 mt-2">
+                            <p>Size: {item.details.size}</p>
+                            <p>Team: {item.details.team}</p>
+                            <p>Player: {item.details.player}</p>
+                            {item.details.personalization && <p>Personalization: {item.details.personalization}</p>}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right mt-2 sm:mt-0">
-                        <p className="font-display font-bold">${(item.price || 0).toFixed(2)}</p>
+                        <span className="text-gold-warm font-display text-lg font-bold">
+                          ${formatPrice(item.price)}
+                        </span>
                       </div>
                     </div>
                     <div className="flex justify-between items-center mt-4">
-                      <div className="flex items-center">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 rounded-r-none border-gold-700"
-                          onClick={() => handleQuantityChange(item.productId, (item.quantity || 1) - 1)}
-                        >
-                          -
-                        </Button>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity || 1}
-                          onChange={(e) => handleQuantityChange(item.productId, Number.parseInt(e.target.value) || 1)}
-                          className="h-8 w-12 rounded-none text-center border-x-0 border-gold-700"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 rounded-l-none border-gold-700"
-                          onClick={() => handleQuantityChange(item.productId, (item.quantity || 1) + 1)}
-                        >
-                          +
-                        </Button>
-                      </div>
+                      {item.type !== "preorder" ? (
+                        <div className="flex items-center">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 border-gold/30 text-gold"
+                            onClick={() => handleQuantityChange(item.productId, (item.quantity || 1) - 1)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center text-offwhite">{item.quantity || 1}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 border-gold/30 text-gold"
+                            onClick={() => handleQuantityChange(item.productId, (item.quantity || 1) + 1)}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-offwhite/70">Custom pre-order • 4-6 weeks delivery</div>
+                      )}
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="text-red-500 hover:text-red-700 hover:bg-transparent"
-                        onClick={() => handleRemoveItem(item.productId)}
+                        size="sm"
+                        className="text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                        onClick={() => removeItem(item.productId)}
                       >
-                        <Trash2 className="h-5 w-5" />
-                        <span className="sr-only">Remove</span>
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Remove
                       </Button>
                     </div>
                   </div>
@@ -172,74 +183,98 @@ export default function CartPage() {
             </Card>
           ))}
 
-          <div className="flex justify-between items-center pt-4">
-            <Button variant="outline" className="border-gold-500 text-gold-500 hover:bg-gold-500/10 font-body" asChild>
-              <Link href="/customer/shop">Continue Shopping</Link>
+          <div className="flex justify-between mt-6">
+            <Button
+              variant="outline"
+              className="border-gold/30 text-gold hover:bg-gold/10"
+              onClick={() => router.push("/customer/shop")}
+            >
+              Continue Shopping
             </Button>
             <Button
               variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-500/10 font-body"
+              className="border-red-500/30 text-red-400 hover:bg-red-950/20"
               onClick={() => {
-                clearCart()
-                toast({
-                  title: "Cart cleared",
-                  description: "All items have been removed from your cart.",
-                })
+                if (confirm("Are you sure you want to clear your cart?")) {
+                  clearCart()
+                }
               }}
             >
+              <Trash2 className="h-4 w-4 mr-2" />
               Clear Cart
             </Button>
           </div>
         </div>
 
         {/* Order Summary */}
-        <div className="lg:w-1/3">
-          <Card className="border border-gold-700 sticky top-20">
-            <CardHeader>
-              <CardTitle className="font-display text-gold-500">Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between font-body">
-                <span>Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+        <div>
+          <Card className="border-gold/30 bg-charcoal sticky top-4">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-display font-bold text-gold mb-4">Order Summary</h2>
+
+              <div className="space-y-3 text-offwhite">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>${formatPrice(subtotal)}</span>
+                </div>
+
+                {discount > 0 && (
+                  <div className="flex justify-between text-green-400">
+                    <span>Discount</span>
+                    <span>-${formatPrice(discount)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between">
+                  <span>Shipping</span>
+                  <span>{shipping === 0 ? "Free" : `$${formatPrice(shipping)}`}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Tax (8%)</span>
+                  <span>${formatPrice(tax)}</span>
+                </div>
+
+                <Separator className="my-4 bg-gold/20" />
+
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total</span>
+                  <span className="text-gold-warm">${formatPrice(total)}</span>
+                </div>
               </div>
-              <div className="flex justify-between font-body">
-                <span>Delivery Fee</span>
-                <span>{deliveryFee === 0 ? "Free" : `$${deliveryFee.toFixed(2)}`}</span>
+
+              {/* Promo Code */}
+              <div className="mt-6">
+                <div className="flex space-x-2">
+                  <Input
+                    placeholder="Promo code"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    className="border-gold/30 bg-jetblack text-offwhite"
+                  />
+                  <Button
+                    variant="outline"
+                    className="border-gold/30 text-gold hover:bg-gold/10"
+                    onClick={applyPromoCode}
+                  >
+                    <Tag className="h-4 w-4 mr-2" />
+                    Apply
+                  </Button>
+                </div>
+                <p className="text-xs text-offwhite/50 mt-2">
+                  Try codes: WELCOME10 for 10% off, FREESHIP for free shipping
+                </p>
               </div>
-              <div className="flex items-center">
-                <Input
-                  placeholder="Promo Code"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  className="flex-grow mr-2 border-gold-700"
-                />
-                <Button
-                  variant="outline"
-                  className="border-gold-500 text-gold-500 hover:bg-gold-500/10 font-body"
-                  onClick={handleApplyPromoCode}
-                  disabled={isApplyingPromo || !promoCode}
-                >
-                  Apply
-                </Button>
-              </div>
-              <Separator className="my-2 bg-gold-700/50" />
-              <div className="flex justify-between font-display font-bold text-lg">
-                <span>Total</span>
-                <span>${totalWithDelivery.toFixed(2)}</span>
-              </div>
-              <p className="text-sm text-gray-500 font-body">
-                Delivery available only in Dubai. Free delivery on orders over AED 1,000.
+
+              <Button className="w-full mt-6 bg-gold-soft hover:bg-gold-deep text-jetblack" onClick={handleCheckout}>
+                Proceed to Checkout
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+
+              <p className="text-xs text-center text-offwhite/50 mt-4">
+                Secure checkout powered by Stripe. Your payment information is encrypted.
               </p>
             </CardContent>
-            <CardFooter>
-              <Button
-                className="w-full bg-gold-gradient hover:bg-gold-shine bg-[length:200%_auto] hover:animate-gold-shimmer text-black font-body"
-                onClick={handleCheckout}
-              >
-                Proceed to Checkout <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardFooter>
           </Card>
         </div>
       </div>
@@ -248,7 +283,8 @@ export default function CartPage() {
       <AuthRequiredModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        actionType="cart"
+        title="Sign in to continue"
+        description="Please sign in or create an account to proceed with checkout."
         returnUrl="/customer/cart"
       />
     </div>

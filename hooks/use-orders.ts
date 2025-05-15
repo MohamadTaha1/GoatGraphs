@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { Timestamp } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
+import { getFirestore } from "@/lib/firebase"
 
 export interface OrderItem {
   productId: string
@@ -226,33 +226,79 @@ const FALLBACK_ORDERS: Order[] = [
 
 // Hook to fetch orders
 export function useOrders(
-  options: { statusFilter?: string; userId?: string; orderType?: "product" | "video" | "all" } = {},
+  options: {
+    statusFilter?: string
+    userId?: string
+    orderType?: "product" | "video" | "all"
+    refreshInterval?: number
+  } = {},
 ) {
-  const { statusFilter = "all", userId, orderType = "all" } = options
+  const { statusFilter = "all", userId, orderType = "all", refreshInterval = 30000 } = options
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [firestoreAvailable, setFirestoreAvailable] = useState<boolean | null>(null)
+  const [lastRefresh, setLastRefresh] = useState<number>(Date.now())
 
-  useEffect(() => {
-    async function fetchOrders() {
-      try {
-        // Skip if we're not in the browser
-        if (typeof window === "undefined") {
-          setLoading(false)
-          return
-        }
+  // Function to fetch orders that can be called to refresh data
+  const fetchOrders = useCallback(async () => {
+    try {
+      // Skip if we're not in the browser
+      if (typeof window === "undefined") {
+        setLoading(false)
+        return
+      }
 
-        // Check if Firestore is available
-        let db = null
+      // Check if there are any orders in localStorage first (for offline mode or fallback)
+      const localOrders = localStorage.getItem("orders")
+      let localOrdersData: Order[] = []
+
+      if (localOrders) {
         try {
-          db = getFirestoreInstance()
-          if (db) {
-            setFirestoreAvailable(true)
-          } else {
-            console.warn("Firestore instance is null, using fallback data")
-            setFirestoreAvailable(false)
+          localOrdersData = JSON.parse(localOrders)
+          console.log("Found local orders:", localOrdersData.length)
+        } catch (e) {
+          console.error("Error parsing local orders:", e)
+        }
+      }
 
+      // Check if Firestore is available
+      let db = null
+      try {
+        db = await getFirestore()
+        if (db) {
+          setFirestoreAvailable(true)
+          console.log("Firestore available, fetching orders")
+        } else {
+          console.warn("Firestore instance is null, using local/fallback data")
+          setFirestoreAvailable(false)
+
+          // Use local orders if available, otherwise use fallback
+          if (localOrdersData.length > 0) {
+            // Filter local orders based on options
+            let filteredOrders = [...localOrdersData]
+
+            if (userId) {
+              filteredOrders = filteredOrders.filter((order) => order.userId === userId)
+            }
+
+            if (orderType !== "all") {
+              filteredOrders = filteredOrders.filter((order) => order.orderType === orderType)
+            }
+
+            if (statusFilter !== "all") {
+              filteredOrders = filteredOrders.filter((order) => order.orderStatus === statusFilter)
+            }
+
+            // Sort by createdAt in descending order
+            filteredOrders.sort((a, b) => {
+              const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+              const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+              return dateB.getTime() - dateA.getTime()
+            })
+
+            setOrders(filteredOrders)
+          } else {
             // Filter fallback orders based on options
             let filteredOrders = [...FALLBACK_ORDERS]
 
@@ -269,13 +315,41 @@ export function useOrders(
             }
 
             setOrders(filteredOrders)
-            setLoading(false)
-            return
           }
-        } catch (err) {
-          console.error("Failed to get Firestore instance:", err)
-          setFirestoreAvailable(false)
 
+          setLoading(false)
+          return
+        }
+      } catch (err) {
+        console.error("Failed to get Firestore instance:", err)
+        setFirestoreAvailable(false)
+
+        // Use local orders if available, otherwise use fallback
+        if (localOrdersData.length > 0) {
+          // Filter local orders based on options
+          let filteredOrders = [...localOrdersData]
+
+          if (userId) {
+            filteredOrders = filteredOrders.filter((order) => order.userId === userId)
+          }
+
+          if (orderType !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderType === orderType)
+          }
+
+          if (statusFilter !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderStatus === statusFilter)
+          }
+
+          // Sort by createdAt in descending order
+          filteredOrders.sort((a, b) => {
+            const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+            const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+            return dateB.getTime() - dateA.getTime()
+          })
+
+          setOrders(filteredOrders)
+        } else {
           // Filter fallback orders based on options
           let filteredOrders = [...FALLBACK_ORDERS]
 
@@ -292,48 +366,84 @@ export function useOrders(
           }
 
           setOrders(filteredOrders)
-          setLoading(false)
-          return
         }
 
-        try {
-          // Dynamically import Firestore functions to avoid SSR issues
-          const { collection, getDocs, query, where, orderBy, limit } = await import("firebase/firestore")
+        setLoading(false)
+        return
+      }
 
-          // Create query based on filters
-          let ordersQuery: any
+      try {
+        // Dynamically import Firestore functions to avoid SSR issues
+        const { collection, getDocs, query, where, orderBy, limit } = await import("firebase/firestore")
 
-          // Start building the query conditions
-          const queryConditions: any[] = [orderBy("createdAt", "desc"), limit(50)]
+        // Create query based on filters
+        let ordersQuery: any
 
-          // Add userId filter if provided
-          if (userId) {
-            queryConditions.push(where("userId", "==", userId))
-          }
+        // Start building the query conditions
+        const queryConditions: any[] = [orderBy("createdAt", "desc"), limit(100)]
 
-          // Add orderType filter if not "all"
-          if (orderType !== "all") {
-            queryConditions.push(where("orderType", "==", orderType))
-          }
+        // Add userId filter if provided
+        if (userId) {
+          queryConditions.push(where("userId", "==", userId))
+        }
 
-          // Add status filter if not "all"
-          if (statusFilter !== "all") {
-            queryConditions.push(where("orderStatus", "==", statusFilter))
-          }
+        // Add orderType filter if not "all"
+        if (orderType !== "all") {
+          queryConditions.push(where("orderType", "==", orderType))
+        }
 
-          // Create the final query
-          ordersQuery = query(collection(db, "orders"), ...queryConditions)
+        // Add status filter if not "all"
+        if (statusFilter !== "all") {
+          queryConditions.push(where("orderStatus", "==", statusFilter))
+        }
 
-          const querySnapshot = await getDocs(ordersQuery)
-          const ordersData = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Order[]
+        // Create the final query
+        ordersQuery = query(collection(db, "orders"), ...queryConditions)
 
-          if (ordersData.length > 0) {
-            setOrders(ordersData)
+        const querySnapshot = await getDocs(ordersQuery)
+        const ordersData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Order[]
+
+        console.log(`Fetched ${ordersData.length} orders from Firestore`)
+
+        if (ordersData.length > 0) {
+          // Save to localStorage for offline access
+          localStorage.setItem("orders", JSON.stringify(ordersData))
+
+          setOrders(ordersData)
+        } else {
+          console.log("No orders found in Firestore, checking local storage")
+
+          // Check if we have orders in localStorage
+          if (localOrdersData.length > 0) {
+            // Filter local orders based on options
+            let filteredOrders = [...localOrdersData]
+
+            if (userId) {
+              filteredOrders = filteredOrders.filter((order) => order.userId === userId)
+            }
+
+            if (orderType !== "all") {
+              filteredOrders = filteredOrders.filter((order) => order.orderType === orderType)
+            }
+
+            if (statusFilter !== "all") {
+              filteredOrders = filteredOrders.filter((order) => order.orderStatus === statusFilter)
+            }
+
+            // Sort by createdAt in descending order
+            filteredOrders.sort((a, b) => {
+              const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+              const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+              return dateB.getTime() - dateA.getTime()
+            })
+
+            setOrders(filteredOrders)
           } else {
-            console.log("No orders found in Firestore, using fallback data")
+            // Use fallback orders
+            console.log("No local orders, using fallback data")
 
             // Filter fallback orders based on options
             let filteredOrders = [...FALLBACK_ORDERS]
@@ -352,8 +462,36 @@ export function useOrders(
 
             setOrders(filteredOrders)
           }
-        } catch (queryError) {
-          console.error("Error with Firestore query:", queryError)
+        }
+      } catch (queryError) {
+        console.error("Error with Firestore query:", queryError)
+
+        // Check if we have orders in localStorage
+        if (localOrdersData.length > 0) {
+          // Filter local orders based on options
+          let filteredOrders = [...localOrdersData]
+
+          if (userId) {
+            filteredOrders = filteredOrders.filter((order) => order.userId === userId)
+          }
+
+          if (orderType !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderType === orderType)
+          }
+
+          if (statusFilter !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderStatus === statusFilter)
+          }
+
+          // Sort by createdAt in descending order
+          filteredOrders.sort((a, b) => {
+            const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+            const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+            return dateB.getTime() - dateA.getTime()
+          })
+
+          setOrders(filteredOrders)
+        } else {
           // Use fallback orders on query error
           let filteredOrders = [...FALLBACK_ORDERS]
 
@@ -371,10 +509,62 @@ export function useOrders(
 
           setOrders(filteredOrders)
         }
-      } catch (err) {
-        console.error("Error fetching orders:", err)
-        setError(err instanceof Error ? err : new Error("Unknown error"))
-        // Use fallback orders on any error
+      }
+    } catch (err) {
+      console.error("Error fetching orders:", err)
+      setError(err instanceof Error ? err : new Error("Unknown error"))
+
+      // Try to get orders from localStorage
+      try {
+        const localOrders = localStorage.getItem("orders")
+        if (localOrders) {
+          const localOrdersData = JSON.parse(localOrders)
+
+          // Filter local orders based on options
+          let filteredOrders = [...localOrdersData]
+
+          if (userId) {
+            filteredOrders = filteredOrders.filter((order) => order.userId === userId)
+          }
+
+          if (orderType !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderType === orderType)
+          }
+
+          if (statusFilter !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderStatus === statusFilter)
+          }
+
+          // Sort by createdAt in descending order
+          filteredOrders.sort((a, b) => {
+            const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+            const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+            return dateB.getTime() - dateA.getTime()
+          })
+
+          setOrders(filteredOrders)
+        } else {
+          // Use fallback orders on any error
+          let filteredOrders = [...FALLBACK_ORDERS]
+
+          if (userId) {
+            filteredOrders = filteredOrders.filter((order) => order.userId === userId)
+          }
+
+          if (orderType !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderType === orderType)
+          }
+
+          if (statusFilter !== "all") {
+            filteredOrders = filteredOrders.filter((order) => order.orderStatus === statusFilter)
+          }
+
+          setOrders(filteredOrders)
+        }
+      } catch (localStorageError) {
+        console.error("Error reading from localStorage:", localStorageError)
+
+        // Use fallback orders as last resort
         let filteredOrders = [...FALLBACK_ORDERS]
 
         if (userId) {
@@ -390,15 +580,37 @@ export function useOrders(
         }
 
         setOrders(filteredOrders)
-      } finally {
-        setLoading(false)
       }
+    } finally {
+      setLoading(false)
+      setLastRefresh(Date.now())
     }
-
-    fetchOrders()
   }, [statusFilter, userId, orderType])
 
-  return { orders, loading, error, firestoreAvailable, setOrders }
+  // Initial fetch
+  useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
+
+  // Set up periodic refresh if refreshInterval is provided
+  useEffect(() => {
+    if (refreshInterval > 0) {
+      const intervalId = setInterval(() => {
+        console.log("Auto-refreshing orders data")
+        fetchOrders()
+      }, refreshInterval)
+
+      return () => clearInterval(intervalId)
+    }
+  }, [fetchOrders, refreshInterval])
+
+  // Function to manually refresh orders
+  const refreshOrders = () => {
+    setLoading(true)
+    fetchOrders()
+  }
+
+  return { orders, loading, error, firestoreAvailable, setOrders, refreshOrders, lastRefresh }
 }
 
 // Function to get a single order by ID
@@ -409,6 +621,21 @@ export async function getOrder(id: string): Promise<Order | null> {
       return null
     }
 
+    // First check localStorage for the order
+    try {
+      const localOrders = localStorage.getItem("orders")
+      if (localOrders) {
+        const parsedOrders = JSON.parse(localOrders)
+        const localOrder = parsedOrders.find((o: Order) => o.id === id)
+        if (localOrder) {
+          console.log("Found order in localStorage:", id)
+          return localOrder
+        }
+      }
+    } catch (localStorageError) {
+      console.error("Error reading from localStorage:", localStorageError)
+    }
+
     // Check if the ID matches any fallback order
     const fallbackOrder = FALLBACK_ORDERS.find((o) => o.id === id)
     if (fallbackOrder) {
@@ -417,7 +644,7 @@ export async function getOrder(id: string): Promise<Order | null> {
 
     let db
     try {
-      db = getFirestoreInstance()
+      db = await getFirestore()
       if (!db) {
         console.warn("Firestore instance is null, returning fallback order if available")
         return fallbackOrder || null
@@ -435,10 +662,28 @@ export async function getOrder(id: string): Promise<Order | null> {
       const docSnap = await getDoc(docRef)
 
       if (docSnap.exists()) {
-        return {
+        const orderData = {
           id: docSnap.id,
           ...docSnap.data(),
         } as Order
+
+        // Save to localStorage for offline access
+        try {
+          const localOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+          const existingOrderIndex = localOrders.findIndex((o: Order) => o.id === id)
+
+          if (existingOrderIndex >= 0) {
+            localOrders[existingOrderIndex] = orderData
+          } else {
+            localOrders.push(orderData)
+          }
+
+          localStorage.setItem("orders", JSON.stringify(localOrders))
+        } catch (e) {
+          console.error("Error updating localStorage:", e)
+        }
+
+        return orderData
       } else {
         console.log("No such order!")
         return fallbackOrder || null
@@ -461,30 +706,106 @@ export async function updateOrder(orderId: string, updates: Partial<Order>): Pro
       return false
     }
 
+    // Update in localStorage first for immediate feedback
+    try {
+      const localOrders = localStorage.getItem("orders")
+      if (localOrders) {
+        const parsedOrders = JSON.parse(localOrders)
+        const orderIndex = parsedOrders.findIndex((o: Order) => o.id === orderId)
+
+        if (orderIndex >= 0) {
+          // Handle history updates specially
+          if (updates.history) {
+            // If the update includes new history entries, prepend them to the existing history
+            const existingHistory = parsedOrders[orderIndex].history || []
+            parsedOrders[orderIndex] = {
+              ...parsedOrders[orderIndex],
+              ...updates,
+              updatedAt: new Date(),
+              history: [...updates.history, ...existingHistory],
+            }
+          } else {
+            // Regular update without history changes
+            parsedOrders[orderIndex] = {
+              ...parsedOrders[orderIndex],
+              ...updates,
+              updatedAt: new Date(),
+            }
+          }
+
+          localStorage.setItem("orders", JSON.stringify(parsedOrders))
+          console.log("Updated order in localStorage:", orderId)
+        }
+      }
+    } catch (localStorageError) {
+      console.error("Error updating localStorage:", localStorageError)
+    }
+
     let db
     try {
-      db = getFirestoreInstance()
+      db = await getFirestore()
       if (!db) {
-        console.warn("Firestore instance is null, cannot update order")
-        return false
+        console.warn("Firestore instance is null, order only updated in localStorage")
+        return true // Return true since we updated localStorage
       }
     } catch (err) {
       console.error("Failed to get Firestore instance:", err)
-      return false
+      return true // Return true since we updated localStorage
     }
 
     // Dynamically import Firestore functions
-    const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore")
+    const { doc, updateDoc, arrayUnion, serverTimestamp } = await import("firebase/firestore")
 
     const orderRef = doc(db, "orders", orderId)
 
-    // Add updatedAt timestamp to updates
-    const updatesWithTimestamp = {
-      ...updates,
-      updatedAt: serverTimestamp(),
+    // Handle history updates specially
+    if (updates.history) {
+      // For each history entry, use arrayUnion to add it to the history array
+      for (const entry of updates.history) {
+        await updateDoc(orderRef, {
+          history: arrayUnion(entry),
+          updatedAt: serverTimestamp(),
+          ...(updates.orderStatus ? { orderStatus: updates.orderStatus } : {}),
+          // Add other fields from updates except history
+          ...Object.entries(updates)
+            .filter(([key]) => key !== "history")
+            .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {}),
+        })
+      }
+    } else {
+      // Regular update without history changes
+      const updatesWithTimestamp = {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      }
+
+      await updateDoc(orderRef, updatesWithTimestamp)
     }
 
-    await updateDoc(orderRef, updatesWithTimestamp)
+    // If this is a video order, also update the videoRequests collection
+    if (updates.orderStatus) {
+      try {
+        const { collection, query, where, getDocs, updateDoc } = await import("firebase/firestore")
+
+        // Find the corresponding video request
+        const videoRequestsQuery = query(collection(db, "videoRequests"), where("orderId", "==", orderId))
+
+        const querySnapshot = await getDocs(videoRequestsQuery)
+
+        if (!querySnapshot.empty) {
+          const videoRequestDoc = querySnapshot.docs[0]
+          await updateDoc(doc(db, "videoRequests", videoRequestDoc.id), {
+            status: updates.orderStatus,
+            updatedAt: serverTimestamp(),
+          })
+          console.log("Updated corresponding video request:", videoRequestDoc.id)
+        }
+      } catch (videoUpdateError) {
+        console.error("Error updating video request:", videoUpdateError)
+        // Continue since the main order was updated
+      }
+    }
+
     return true
   } catch (error) {
     console.error("Error updating order:", error)
@@ -494,38 +815,65 @@ export async function updateOrder(orderId: string, updates: Partial<Order>): Pro
 
 // Function to create a new order
 export async function createOrder(orderData: Omit<Order, "id" | "createdAt" | "updatedAt">): Promise<string | null> {
+  let orderId: string | null = null
   try {
     if (typeof window === "undefined") {
       console.error("Cannot create order server-side")
       return null
     }
 
-    let db
-    try {
-      db = getFirestoreInstance()
-      if (!db) {
-        console.warn("Firestore instance is null, cannot create order")
-        return null
-      }
-    } catch (err) {
-      console.error("Failed to get Firestore instance:", err)
-      return null
-    }
-
-    // Dynamically import Firestore functions
-    const { collection, addDoc, serverTimestamp } = await import("firebase/firestore")
+    // Generate a unique ID for the order
+    orderId = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`
 
     // Add timestamps
     const orderWithTimestamps = {
       ...orderData,
+      id: orderId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    // Save to localStorage first for immediate access
+    try {
+      const localOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+      localOrders.push(orderWithTimestamps)
+      localStorage.setItem("orders", JSON.stringify(localOrders))
+      console.log("Saved order to localStorage:", orderId)
+    } catch (localStorageError) {
+      console.error("Error saving to localStorage:", localStorageError)
+    }
+
+    let db
+    try {
+      db = await getFirestore()
+      if (!db) {
+        console.warn("Firestore instance is null, order only saved to localStorage")
+        return orderId // Return the ID since we saved to localStorage
+      }
+    } catch (err) {
+      console.error("Failed to get Firestore instance:", err)
+      return orderId // Return the ID since we saved to localStorage
+    }
+
+    // Dynamically import Firestore functions
+    const { doc, setDoc, serverTimestamp } = await import("firebase/firestore")
+
+    // Convert JS Date to Firestore Timestamp
+    const orderWithFirestoreTimestamps = {
+      ...orderData,
+      id: orderId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     }
 
-    const docRef = await addDoc(collection(db, "orders"), orderWithTimestamps)
-    return docRef.id
+    // Use setDoc with the generated ID to ensure immediate availability
+    await setDoc(doc(db, "orders", orderId), orderWithFirestoreTimestamps)
+    console.log("Order saved to Firestore with ID:", orderId)
+
+    return orderId
   } catch (error) {
     console.error("Error creating order:", error)
-    return null
+    // Return the ID if we saved to localStorage earlier
+    return orderId || null
   }
 }

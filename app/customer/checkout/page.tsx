@@ -14,11 +14,13 @@ import { formatPrice } from "@/lib/utils"
 import { Loader2, CreditCard, ShoppingBag } from "lucide-react"
 import Image from "next/image"
 import { createProductOrder } from "@/lib/order-service"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function CheckoutPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { items, clearCart, total } = useCart()
+  const { items, clearCart } = useCart()
+  const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState("credit-card")
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -115,11 +117,11 @@ export default function CheckoutPage() {
           address: formData.address,
         },
         items: items.map((item) => ({
-          productId: item.productId,
+          productId: item.id || item.productId,
           productName: item.name,
           quantity: item.quantity,
           price: item.price,
-          imageUrl: item.image,
+          imageUrl: item.image || item.imageUrl,
         })),
         subtotal: totals.subtotal,
         shipping: totals.shipping,
@@ -129,11 +131,28 @@ export default function CheckoutPage() {
         paymentStatus: "paid", // In a real app, this would be determined by payment processing
         orderStatus: "pending",
         shippingMethod: "Standard",
+        history: [
+          {
+            status: "pending",
+            timestamp: new Date(),
+            comment: "Order placed by customer",
+          },
+        ],
       }
+
+      console.log("Creating order with data:", orderData)
 
       // Create the order in Firestore
       const newOrderId = await createProductOrder(orderData)
+      console.log("Order created with ID:", newOrderId)
       setOrderId(newOrderId)
+
+      // Show success toast
+      toast({
+        title: "Order Placed Successfully!",
+        description: `Your order #${newOrderId.slice(0, 8)} has been placed and is being processed.`,
+        duration: 5000,
+      })
 
       // Clear the cart
       clearCart()
@@ -146,7 +165,14 @@ export default function CheckoutPage() {
     } catch (error) {
       console.error("Error processing order:", error)
       setIsSubmitting(false)
-      // In a real app, you would handle the error appropriately
+
+      // Show error toast
+      toast({
+        title: "Order Failed",
+        description: "There was a problem processing your order. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
     }
   }
 
@@ -398,10 +424,10 @@ export default function CheckoutPage() {
             <CardContent>
               <div className="space-y-4">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-start gap-3">
+                  <div key={item.id || item.productId} className="flex items-start gap-3">
                     <div className="h-16 w-16 bg-black-300 rounded flex items-center justify-center overflow-hidden relative">
                       <Image
-                        src={item.image || "/placeholder.svg?height=64&width=64"}
+                        src={item.image || item.imageUrl || "/placeholder.svg?height=64&width=64"}
                         alt={item.name}
                         fill
                         className="object-contain"

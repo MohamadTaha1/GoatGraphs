@@ -1,5 +1,4 @@
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore"
+import { getFirestore } from "@/lib/firebase"
 import { v4 as uuidv4 } from "uuid"
 
 // Common interface for both order types
@@ -29,6 +28,11 @@ export interface OrderBase {
   createdAt?: any
   updatedAt?: any
   orderType: "product" | "video"
+  history?: Array<{
+    status: string
+    timestamp: any
+    comment?: string
+  }>
 }
 
 // Product order specific fields
@@ -68,40 +72,57 @@ export async function createProductOrder(
   orderData: Omit<ProductOrder, "id" | "createdAt" | "updatedAt" | "orderType">,
 ): Promise<string> {
   try {
-    const db = getFirestoreInstance()
-    if (!db) {
-      console.error("Firestore not available")
-      return "offline-order-" + uuidv4().substring(0, 8)
-    }
+    // Generate a unique ID for the order
+    const orderId = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`
 
     // Add order type and timestamps
     const orderWithMeta = {
       ...orderData,
+      id: orderId,
       orderType: "product",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      history: [
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      history: orderData.history || [
         {
           status: orderData.orderStatus,
-          timestamp: serverTimestamp(),
+          timestamp: new Date(),
           comment: "Order created",
         },
       ],
     }
 
-    const docRef = await addDoc(collection(db, "orders"), orderWithMeta)
-    console.log("Order created with ID:", docRef.id)
+    try {
+      // Try to save to Firestore if available
+      const db = await getFirestore()
 
-    // Update the document with its ID
-    await updateDoc(doc(db, "orders", docRef.id), {
-      id: docRef.id,
-    })
+      if (db) {
+        console.log("Firestore available, saving order")
+        // Dynamically import Firestore functions
+        const { collection, doc, setDoc } = await import("firebase/firestore")
 
-    return docRef.id
+        // Use setDoc with the generated ID to ensure immediate availability
+        await setDoc(doc(db, "orders", orderId), orderWithMeta)
+        console.log("Order saved to Firestore with ID:", orderId)
+      } else {
+        console.log("Firestore not available, using local storage")
+        // Fallback to localStorage if Firestore is not available
+        const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+        existingOrders.push(orderWithMeta)
+        localStorage.setItem("orders", JSON.stringify(existingOrders))
+      }
+    } catch (firestoreError) {
+      console.error("Error saving to Firestore:", firestoreError)
+      // Fallback to localStorage on error
+      const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+      existingOrders.push(orderWithMeta)
+      localStorage.setItem("orders", JSON.stringify(existingOrders))
+    }
+
+    return orderId
   } catch (error) {
     console.error("Error creating order:", error)
     // Return a fake ID for offline mode
-    return "offline-order-" + uuidv4().substring(0, 8)
+    return `ORD-OFFLINE-${uuidv4().substring(0, 8)}`
   }
 }
 
@@ -110,57 +131,96 @@ export async function createVideoOrder(
   orderData: Omit<VideoOrder, "id" | "createdAt" | "updatedAt" | "orderType">,
 ): Promise<string> {
   try {
-    const db = getFirestoreInstance()
-    if (!db) {
-      console.error("Firestore not available")
-      return "offline-video-" + uuidv4().substring(0, 8)
-    }
+    // Generate a unique ID for the order
+    const orderId = `VID-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`
 
     // Add order type and timestamps
     const orderWithMeta = {
       ...orderData,
+      id: orderId,
       orderType: "video",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      history: [
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      history: orderData.history || [
         {
           status: orderData.orderStatus,
-          timestamp: serverTimestamp(),
+          timestamp: new Date(),
           comment: "Video request created",
         },
       ],
     }
 
-    // Add to orders collection
-    const docRef = await addDoc(collection(db, "orders"), orderWithMeta)
-    console.log("Video order created with ID:", docRef.id)
+    try {
+      // Try to save to Firestore if available
+      const db = await getFirestore()
 
-    // Update the document with its ID
-    await updateDoc(doc(db, "orders", docRef.id), {
-      id: docRef.id,
-    })
+      if (db) {
+        console.log("Firestore available, saving video order")
+        // Dynamically import Firestore functions
+        const { collection, doc, setDoc } = await import("firebase/firestore")
 
-    // Also add to videoRequests collection for backward compatibility
-    const videoData = {
-      ...orderData.videoRequest,
-      userId: orderData.userId,
-      orderId: docRef.id,
-      createdAt: serverTimestamp(),
-      status: orderData.orderStatus,
+        // Use setDoc with the generated ID to ensure immediate availability
+        await setDoc(doc(db, "orders", orderId), orderWithMeta)
+
+        // Also add to videoRequests collection for backward compatibility
+        const videoData = {
+          ...orderData.videoRequest,
+          id: `VIDREQ-${Date.now().toString().slice(-6)}`,
+          userId: orderData.userId,
+          orderId: orderId,
+          createdAt: new Date(),
+          status: orderData.orderStatus,
+        }
+
+        await setDoc(doc(db, "videoRequests", videoData.id), videoData)
+        console.log("Video order saved to Firestore with ID:", orderId)
+      } else {
+        console.log("Firestore not available, using local storage")
+        // Fallback to localStorage if Firestore is not available
+        const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+        existingOrders.push(orderWithMeta)
+        localStorage.setItem("orders", JSON.stringify(existingOrders))
+
+        // Also save to videoRequests in localStorage
+        const videoData = {
+          ...orderData.videoRequest,
+          id: `VIDREQ-${Date.now().toString().slice(-6)}`,
+          userId: orderData.userId,
+          orderId: orderId,
+          createdAt: new Date(),
+          status: orderData.orderStatus,
+        }
+
+        const existingVideoRequests = JSON.parse(localStorage.getItem("videoRequests") || "[]")
+        existingVideoRequests.push(videoData)
+        localStorage.setItem("videoRequests", JSON.stringify(existingVideoRequests))
+      }
+    } catch (firestoreError) {
+      console.error("Error saving to Firestore:", firestoreError)
+      // Fallback to localStorage on error
+      const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]")
+      existingOrders.push(orderWithMeta)
+      localStorage.setItem("orders", JSON.stringify(existingOrders))
+
+      // Also save to videoRequests in localStorage
+      const videoData = {
+        ...orderData.videoRequest,
+        id: `VIDREQ-${Date.now().toString().slice(-6)}`,
+        userId: orderData.userId,
+        orderId: orderId,
+        createdAt: new Date(),
+        status: orderData.orderStatus,
+      }
+
+      const existingVideoRequests = JSON.parse(localStorage.getItem("videoRequests") || "[]")
+      existingVideoRequests.push(videoData)
+      localStorage.setItem("videoRequests", JSON.stringify(existingVideoRequests))
     }
 
-    const videoRef = await addDoc(collection(db, "videoRequests"), videoData)
-    console.log("Video request created with ID:", videoRef.id)
-
-    // Update the video request with its ID
-    await updateDoc(doc(db, "videoRequests", videoRef.id), {
-      id: videoRef.id,
-    })
-
-    return docRef.id
+    return orderId
   } catch (error) {
     console.error("Error creating video order:", error)
     // Return a fake ID for offline mode
-    return "offline-video-" + uuidv4().substring(0, 8)
+    return `VID-OFFLINE-${uuidv4().substring(0, 8)}`
   }
 }

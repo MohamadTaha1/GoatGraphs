@@ -27,7 +27,7 @@ interface AuthRequiredModalProps {
   returnUrl?: string
 }
 
-export default function AuthRequiredModal({ isOpen, onClose, actionType, returnUrl }: AuthRequiredModalProps) {
+export function AuthRequiredModal({ isOpen, onClose, actionType, returnUrl }: AuthRequiredModalProps) {
   const [activeTab, setActiveTab] = useState<"login" | "register">("login")
   const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
@@ -231,3 +231,6 @@ export default function AuthRequiredModal({ isOpen, onClose, actionType, returnU
     </Dialog>
   )
 }
+
+// Add default export that references the named export
+export default AuthRequiredModal
