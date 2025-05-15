@@ -132,7 +132,9 @@ export default function OrdersPage() {
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
+    if (!status) return "bg-gray-500/20 text-gray-500"
+
     switch (status) {
       case "pending":
         return "bg-blue-500/20 text-blue-500"
@@ -152,7 +154,9 @@ export default function OrdersPage() {
     }
   }
 
-  const getStatusIcon = (status: string, type: "product" | "video" = "product") => {
+  const getStatusIcon = (status: string | undefined, type: "product" | "video" = "product") => {
+    if (!status) return <AlertCircle className="h-5 w-5" />
+
     if (type === "video") {
       switch (status) {
         case "pending":
@@ -231,7 +235,9 @@ export default function OrdersPage() {
                           <span className="flex items-center">
                             {getStatusIcon(order.orderStatus)}
                             <span className="ml-1">
-                              {order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)}
+                              {order.orderStatus
+                                ? order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)
+                                : "Unknown"}
                             </span>
                           </span>
                         </Badge>
@@ -317,7 +323,9 @@ export default function OrdersPage() {
                           <span className="flex items-center">
                             {getStatusIcon(order.orderStatus, "video")}
                             <span className="ml-1">
-                              {order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)}
+                              {order.orderStatus
+                                ? order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)
+                                : "Unknown"}
                             </span>
                           </span>
                         </Badge>

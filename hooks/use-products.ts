@@ -17,8 +17,6 @@ import {
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirebaseApp } from "@/lib/firebase"
-import { getFirestoreFallbackData } from "@/lib/firebase"
-import { isFirestoreAvailable } from "@/lib/firebase"
 
 export type Product = {
   id: string
@@ -42,55 +40,34 @@ export function useProducts() {
   useEffect(() => {
     let isMounted = true
 
-    const fetchProducts = async () => {
-      setLoading(true)
-      setError(null)
-
+    async function fetchProducts() {
       try {
-        if (!isFirestoreAvailable()) {
-          console.log("Firestore not available, using fallback data")
-          const fallbackData = getFirestoreFallbackData("products")
-          setProducts(fallbackData)
+        setLoading(true)
+        const db = getFirestoreInstance()
+
+        if (!db) {
+          throw new Error("Firestore instance is null")
+        }
+
+        // Create a query to get products ordered by creation date
+        const q = query(collection(db, "products"), orderBy("createdAt", "desc"))
+
+        const querySnapshot = await getDocs(q)
+        const productsData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Product[]
+
+        if (isMounted) {
+          setProducts(productsData)
           setLoading(false)
-          return
         }
-
-        try {
-          setLoading(true)
-          const db = getFirestoreInstance()
-
-          if (!db) {
-            throw new Error("Firestore instance is null")
-          }
-
-          // Create a query to get products ordered by creation date
-          const q = query(collection(db, "products"), orderBy("createdAt", "desc"))
-
-          const querySnapshot = await getDocs(q)
-          const productsData = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Product[]
-
-          if (isMounted) {
-            setProducts(productsData)
-            setLoading(false)
-          }
-        } catch (err) {
-          console.error("Error fetching products:", err)
-          if (isMounted) {
-            setError(err instanceof Error ? err : new Error("Failed to fetch products"))
-            setLoading(false)
-          }
+      } catch (err) {
+        console.error("Error fetching products:", err)
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error("Failed to fetch products"))
+          setLoading(false)
         }
-      } catch (error) {
-        console.error("Error fetching products:", error)
-        setError("Failed to load products. Please try again later.")
-        // Use fallback data on error
-        const fallbackData = getFirestoreFallbackData("products")
-        setProducts(fallbackData)
-      } finally {
-        setLoading(false)
       }
     }
 

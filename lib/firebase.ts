@@ -16,49 +16,27 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-// Global variables to store Firebase instances
-let app: any = null
-let auth: Auth | undefined = undefined
-let db: Firestore | undefined = undefined
-let storage: FirebaseStorage | undefined = undefined
-let isInitializing = false
-let initializationComplete = false
+let app: any
+let auth: Auth | undefined
+let db: Firestore | undefined
+let storage: FirebaseStorage | undefined
 
-// Initialize Firebase app with better error handling
 function createFirebaseApp() {
-  if (isInitializing) {
-    console.log("Firebase initialization already in progress")
-    return null
-  }
-
-  if (typeof window === "undefined") {
-    console.log("Skipping Firebase initialization on server side")
-    return null
-  }
-
   try {
-    isInitializing = true
-
-    // Check if Firebase app is already initialized
     if (getApps().length === 0) {
-      console.log("Initializing new Firebase app")
       app = initializeApp(firebaseConfig)
+      console.log("Firebase app initialized successfully")
     } else {
-      console.log("Using existing Firebase app")
       app = getApp()
+      console.log("Firebase app already initialized")
     }
-
-    isInitializing = false
-    initializationComplete = true
     return app
   } catch (error) {
     console.error("Error initializing Firebase app:", error)
-    isInitializing = false
     return null
   }
 }
 
-// Get Firebase app instance
 export function getFirebaseApp() {
   if (typeof window === "undefined") {
     return null
@@ -71,7 +49,7 @@ export function getFirebaseApp() {
   return createFirebaseApp()
 }
 
-// Get Auth instance with retry mechanism
+// Modify the getAuthInstance function to handle the "Component auth has not been registered yet" error
 export function getAuthInstance() {
   if (typeof window === "undefined") {
     return undefined
@@ -82,25 +60,30 @@ export function getAuthInstance() {
   }
 
   try {
-    const firebaseApp = getFirebaseApp()
-    if (!firebaseApp) {
-      console.warn("Firebase app not initialized, cannot get Auth")
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
       return undefined
     }
 
-    auth = getAuth(firebaseApp)
-    console.log("Auth initialized successfully")
-    return auth
+    // Add a try-catch block specifically for Auth initialization
+    try {
+      auth = getAuth(app)
+      console.log("Auth initialized successfully")
+      return auth
+    } catch (error) {
+      console.error("Error initializing Firebase Auth:", error)
+      console.warn("Auth component not registered yet, will retry later")
+      return undefined
+    }
   } catch (error) {
     console.error("Error initializing Firebase Auth:", error)
     return undefined
   }
 }
 
-// Get Firestore instance with improved error handling
 export function getFirestoreInstance() {
   if (typeof window === "undefined") {
-    console.log("Firestore cannot be accessed on server side")
     return undefined
   }
 
@@ -109,28 +92,28 @@ export function getFirestoreInstance() {
   }
 
   try {
-    const firebaseApp = getFirebaseApp()
-    if (!firebaseApp) {
-      console.warn("Firebase app not initialized, cannot get Firestore")
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
       return undefined
     }
 
-    // Check if Firestore is available in the current environment
-    if (typeof window.firebase === "undefined" || typeof window.firebase.firestore === "undefined") {
-      console.warn("Firestore is not available in this environment")
+    // Add a try-catch block specifically for Firestore initialization
+    try {
+      db = getFirestore(app)
+      console.log("Firestore initialized successfully")
+      return db
+    } catch (error) {
+      console.error("Error initializing Firestore:", error)
+      console.warn("Firestore service not available yet, will retry later")
       return undefined
     }
-
-    db = getFirestore(firebaseApp)
-    console.log("Firestore initialized successfully")
-    return db
   } catch (error) {
     console.error("Error initializing Firestore:", error)
     return undefined
   }
 }
 
-// Get Storage instance with improved error handling
 export function getStorageInstance() {
   if (typeof window === "undefined") {
     return undefined
@@ -141,13 +124,13 @@ export function getStorageInstance() {
   }
 
   try {
-    const firebaseApp = getFirebaseApp()
-    if (!firebaseApp) {
-      console.warn("Firebase app not initialized, cannot get Storage")
+    const app = getFirebaseApp()
+    if (!app) {
+      console.error("Firebase app is not initialized")
       return undefined
     }
 
-    storage = getStorage(firebaseApp)
+    storage = getStorage(app)
     console.log("Storage initialized successfully")
     return storage
   } catch (error) {
@@ -156,62 +139,40 @@ export function getStorageInstance() {
   }
 }
 
-// Initialize Firebase with a more robust approach
+// Update the client-side initialization section to handle Firestore initialization properly
+// Replace the existing client-side initialization with this:
 if (typeof window !== "undefined") {
   // Initialize app first
-  if (!app) {
-    console.log("Starting Firebase initialization")
-    app = getFirebaseApp()
+  app = getFirebaseApp()
 
-    // Initialize services with delays to ensure Firebase is ready
-    if (app) {
-      // Initialize Auth after a short delay
-      setTimeout(() => {
-        try {
-          if (!auth) {
-            auth = getAuthInstance()
-          }
-        } catch (error) {
-          console.warn("Auth initialization failed:", error)
-        }
-      }, 100)
-
-      // Initialize Firestore with a retry mechanism
-      let firestoreRetries = 0
-      const initFirestore = () => {
-        try {
-          if (!db && firestoreRetries < 3) {
-            console.log(`Attempting to initialize Firestore (attempt ${firestoreRetries + 1}/3)`)
-            db = getFirestoreInstance()
-            if (!db) {
-              firestoreRetries++
-              setTimeout(initFirestore, 500) // Retry after 500ms
-            }
-          }
-        } catch (error) {
-          console.warn(`Firestore initialization failed (attempt ${firestoreRetries + 1}/3):`, error)
-          if (firestoreRetries < 3) {
-            firestoreRetries++
-            setTimeout(initFirestore, 500) // Retry after 500ms
-          }
-        }
-      }
-
-      // Start Firestore initialization with a delay
-      setTimeout(initFirestore, 200)
-
-      // Initialize Storage after Firestore
-      setTimeout(() => {
-        try {
-          if (!storage) {
-            storage = getStorageInstance()
-          }
-        } catch (error) {
-          console.warn("Storage initialization failed:", error)
-        }
-      }, 300)
+  // Initialize auth with a delay to ensure Firebase is ready
+  setTimeout(() => {
+    try {
+      auth = getAuthInstance()
+    } catch (error) {
+      console.warn("Auth initialization delayed:", error)
     }
-  }
+  }, 100)
+
+  // Initialize Firestore with a longer delay to ensure Firebase is fully loaded
+  setTimeout(() => {
+    try {
+      db = getFirestoreInstance()
+      console.log("Firestore initialized with delay")
+    } catch (error) {
+      console.warn("Firestore initialization failed after delay:", error)
+    }
+  }, 500)
+
+  // Initialize Storage with a delay
+  setTimeout(() => {
+    try {
+      storage = getStorageInstance()
+      console.log("Storage initialized with delay")
+    } catch (error) {
+      console.warn("Storage initialization failed after delay:", error)
+    }
+  }, 700)
 }
 
 // Export initialized instances
@@ -232,22 +193,4 @@ export function isFirestoreAvailable() {
 
 export function isStorageAvailable() {
   return !!storage
-}
-
-// Fallback data provider for when Firestore is not available
-export function getFirestoreFallbackData(collection: string) {
-  console.log(`Using fallback data for collection: ${collection}`)
-
-  // Return appropriate fallback data based on collection name
-  switch (collection) {
-    case "products":
-      return [
-        { id: "fallback1", name: "Fallback Product 1", price: 99.99, stock: 10 },
-        { id: "fallback2", name: "Fallback Product 2", price: 149.99, stock: 5 },
-      ]
-    case "orders":
-      return [{ id: "order1", status: "completed", total: 249.98, date: new Date().toISOString() }]
-    default:
-      return []
-  }
 }
