@@ -88,35 +88,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser))
-        setIsLoading(false)
       } catch (error) {
         console.error("Error parsing stored user:", error)
-        setIsLoading(false)
       }
-    } else {
-      setIsLoading(false)
     }
 
     // Set up Firebase Auth listener if Firebase is available
     let unsubscribe: (() => void) | undefined
+    let authCheckAttempts = 0
+    const maxAuthCheckAttempts = 5
 
     const setupAuthListener = async () => {
-      if (!isFirebaseAvailable()) {
-        console.warn("Firebase is not available, using local authentication only")
-        return
-      }
-
       try {
-        // Get auth instance asynchronously
-        const auth = await getAuth()
-        if (!auth) {
-          console.warn("Auth is not available, using local authentication only")
+        // Check if Firebase is available
+        if (!isFirebaseAvailable()) {
+          console.warn("Firebase is not available, using local authentication only")
+          setIsLoading(false)
           return
         }
 
+        // Get auth instance asynchronously with retry
+        const auth = await getAuth()
+        if (!auth) {
+          authCheckAttempts++
+          if (authCheckAttempts < maxAuthCheckAttempts) {
+            console.warn(
+              `Auth not available (attempt ${authCheckAttempts}/${maxAuthCheckAttempts}), retrying in 1 second...`,
+            )
+            setTimeout(setupAuthListener, 1000)
+            return
+          } else {
+            console.warn("Max auth check attempts reached, using local authentication only")
+            setIsLoading(false)
+            return
+          }
+        }
+
+        console.log("Auth instance obtained successfully, setting up listener")
+
         // Import Firebase auth functions dynamically
-        const { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } =
-          await import("firebase/auth")
+        const { onAuthStateChanged } = await import("firebase/auth")
 
         // Set up auth state listener
         unsubscribe = onAuthStateChanged(
@@ -305,10 +316,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const auth = await getAuth()
           if (auth) {
             // Import Firebase auth functions dynamically
-            const { createUserWithEmailAndPassword } = await import("firebase/auth")
+            const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth")
 
             const userCredential = await createUserWithEmailAndPassword(auth, email, password)
             const firebaseUser = userCredential.user
+
+            // Update profile with display name
+            await updateProfile(firebaseUser, { displayName })
 
             // Set user state
             const newUser = {

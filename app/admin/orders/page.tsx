@@ -16,6 +16,7 @@ import {
   Info,
   ShoppingBag,
   Video,
+  RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
 import { useOrders, updateOrder } from "@/hooks/use-orders"
@@ -35,21 +36,20 @@ export default function OrdersPage() {
   const { toast } = useToast()
 
   // Fetch orders using our custom hook
-  const { orders, loading, error, firestoreAvailable, setOrders } = useOrders({
+  const { orders, loading, error, firestoreAvailable, setOrders, refreshOrders } = useOrders({
     statusFilter,
     orderType: orderTypeTab,
+    refreshInterval: 30000, // Refresh every 30 seconds
   })
 
   // Filter orders based on search term
   const filteredOrders = orders.filter((order) => {
     return (
       !searchTerm ||
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerInfo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerInfo.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.orderType === "video" &&
-        "videoRequest" in order &&
-        order.videoRequest.player.toLowerCase().includes(searchTerm.toLowerCase()))
+      order.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerInfo?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerInfo?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.orderType === "video" && order.videoRequest?.player?.toLowerCase().includes(searchTerm.toLowerCase()))
     )
   })
 
@@ -105,13 +105,10 @@ export default function OrdersPage() {
         return
       }
 
-      // Dynamically import Firestore functions
-      const { Timestamp } = await import("firebase/firestore")
-
       // Create a new history entry
       const historyEntry = {
         status: newStatus,
-        timestamp: Timestamp.now(),
+        timestamp: new Date(),
         comment: `Status updated to ${newStatus} by admin`,
       }
 
@@ -179,7 +176,7 @@ export default function OrdersPage() {
         <Button
           variant="outline"
           className="border-gold-500 text-gold-500 hover:bg-gold-500/10"
-          onClick={() => window.location.reload()}
+          onClick={refreshOrders}
         >
           Try Again
         </Button>
@@ -208,6 +205,10 @@ export default function OrdersPage() {
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-5">
           <CardTitle className="text-gold-500 font-display">Orders & Requests</CardTitle>
           <div className="flex space-x-2">
+            <Button variant="outline" size="sm" className="border-gold-700 text-gold-500" onClick={refreshOrders}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
             <Button variant="outline" size="sm" className="border-gold-700 text-gold-500">
               <Download className="mr-2 h-4 w-4" />
               Export
@@ -384,8 +385,8 @@ function OrdersTable({
                 </TableCell>
                 <TableCell className="font-body">
                   <div>
-                    <p>{order.customerInfo.name}</p>
-                    <p className="text-xs text-gray-400">{order.customerInfo.email}</p>
+                    <p>{order.customerInfo?.name}</p>
+                    <p className="text-xs text-gray-400">{order.customerInfo?.email}</p>
                   </div>
                 </TableCell>
                 <TableCell className="font-body">{formatDate(order.createdAt)}</TableCell>
