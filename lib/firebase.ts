@@ -1,9 +1,7 @@
 "use client"
 
+// Import only the core Firebase app functionality initially
 import { initializeApp, getApps, getApp } from "firebase/app"
-import { getAuth, type Auth } from "firebase/auth"
-import { getFirestore, type Firestore } from "firebase/firestore"
-import { getStorage, type FirebaseStorage } from "firebase/storage"
 
 // Firebase configuration
 const firebaseConfig = {
@@ -16,181 +14,252 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-let app: any
-let auth: Auth | undefined
-let db: Firestore | undefined
-let storage: FirebaseStorage | undefined
+// Initialize Firebase app only once
+let firebaseApp: any = null
 
-function createFirebaseApp() {
+// Service instances
+let authInstance: any = null
+let firestoreInstance: any = null
+let storageInstance: any = null
+
+// Service initialization status
+let authInitialized = false
+let firestoreInitialized = false
+let storageInitialized = false
+
+// Validation function to check if Firebase config is valid
+function isValidFirebaseConfig() {
+  return !!firebaseConfig.apiKey && !!firebaseConfig.authDomain && !!firebaseConfig.projectId
+}
+
+// Log Firebase configuration for debugging (without sensitive values)
+console.log("Firebase config check:", {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasAuthDomain: !!firebaseConfig.authDomain,
+  hasProjectId: !!firebaseConfig.projectId,
+  hasStorageBucket: !!firebaseConfig.storageBucket,
+  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+  hasAppId: !!firebaseConfig.appId,
+  hasMeasurementId: !!firebaseConfig.measurementId,
+})
+
+export function getFirebaseApp() {
+  if (typeof window === "undefined") {
+    return null // Return null on server-side
+  }
+
+  if (firebaseApp) {
+    return firebaseApp
+  }
+
   try {
-    if (getApps().length === 0) {
-      app = initializeApp(firebaseConfig)
-      console.log("Firebase app initialized successfully")
-    } else {
-      app = getApp()
-      console.log("Firebase app already initialized")
+    // Validate Firebase config
+    if (!isValidFirebaseConfig()) {
+      console.error("Invalid Firebase configuration. Check your environment variables.")
+      return null
     }
-    return app
+
+    // Check if Firebase app is already initialized
+    if (getApps().length === 0) {
+      console.log("Initializing Firebase app")
+      firebaseApp = initializeApp(firebaseConfig)
+    } else {
+      console.log("Firebase app already initialized")
+      firebaseApp = getApp()
+    }
+    return firebaseApp
   } catch (error) {
     console.error("Error initializing Firebase app:", error)
     return null
   }
 }
 
-export function getFirebaseApp() {
-  if (typeof window === "undefined") {
+// Initialize Firebase immediately in client-side
+if (typeof window !== "undefined") {
+  getFirebaseApp()
+}
+
+// Lazy initialization functions with dynamic imports
+export async function getAuth() {
+  if (typeof window === "undefined") return null
+  if (!firebaseApp) firebaseApp = getFirebaseApp()
+  if (!firebaseApp) return null
+
+  if (authInstance && authInitialized) {
+    return authInstance
+  }
+
+  try {
+    const { getAuth: firebaseGetAuth } = await import("firebase/auth")
+    authInstance = firebaseGetAuth(firebaseApp)
+    authInitialized = true
+    console.log("Auth initialized successfully")
+    return authInstance
+  } catch (error) {
+    console.error("Error initializing Auth:", error)
     return null
   }
-
-  if (app) {
-    return app
-  }
-
-  return createFirebaseApp()
 }
 
-// Modify the getAuthInstance function to handle the "Component auth has not been registered yet" error
-export function getAuthInstance() {
-  if (typeof window === "undefined") {
-    return undefined
-  }
+export async function getFirestore() {
+  if (typeof window === "undefined") return null
+  if (!firebaseApp) firebaseApp = getFirebaseApp()
+  if (!firebaseApp) return null
 
-  if (auth) {
-    return auth
+  if (firestoreInstance && firestoreInitialized) {
+    return firestoreInstance
   }
 
   try {
-    const app = getFirebaseApp()
-    if (!app) {
-      console.error("Firebase app is not initialized")
-      return undefined
-    }
-
-    // Add a try-catch block specifically for Auth initialization
-    try {
-      auth = getAuth(app)
-      console.log("Auth initialized successfully")
-      return auth
-    } catch (error) {
-      console.error("Error initializing Firebase Auth:", error)
-      console.warn("Auth component not registered yet, will retry later")
-      return undefined
-    }
-  } catch (error) {
-    console.error("Error initializing Firebase Auth:", error)
-    return undefined
-  }
-}
-
-export function getFirestoreInstance() {
-  if (typeof window === "undefined") {
-    return undefined
-  }
-
-  if (db) {
-    return db
-  }
-
-  try {
-    const app = getFirebaseApp()
-    if (!app) {
-      console.error("Firebase app is not initialized")
-      return undefined
-    }
-
-    // Add a try-catch block specifically for Firestore initialization
-    try {
-      db = getFirestore(app)
-      console.log("Firestore initialized successfully")
-      return db
-    } catch (error) {
-      console.error("Error initializing Firestore:", error)
-      console.warn("Firestore service not available yet, will retry later")
-      return undefined
-    }
+    const { getFirestore: firebaseGetFirestore } = await import("firebase/firestore")
+    firestoreInstance = firebaseGetFirestore(firebaseApp)
+    firestoreInitialized = true
+    console.log("Firestore initialized successfully")
+    return firestoreInstance
   } catch (error) {
     console.error("Error initializing Firestore:", error)
-    return undefined
+    return null
   }
 }
 
-export function getStorageInstance() {
-  if (typeof window === "undefined") {
-    return undefined
+// Improved Storage initialization with retry mechanism
+export async function getStorage(retryCount = 0, maxRetries = 3) {
+  if (typeof window === "undefined") return null
+  if (!firebaseApp) firebaseApp = getFirebaseApp()
+  if (!firebaseApp) return null
+
+  // If storage is already initialized, return it
+  if (storageInstance && storageInitialized) {
+    return storageInstance
   }
 
-  if (storage) {
-    return storage
+  // Check if storageBucket is configured
+  if (!firebaseConfig.storageBucket) {
+    console.warn("Storage bucket is not configured. Storage initialization may fail.")
   }
 
   try {
-    const app = getFirebaseApp()
-    if (!app) {
-      console.error("Firebase app is not initialized")
-      return undefined
+    // Dynamic import of Firebase storage
+    const { getStorage: firebaseGetStorage } = await import("firebase/storage")
+
+    // Try to initialize storage
+    storageInstance = firebaseGetStorage(firebaseApp)
+    storageInitialized = true
+    console.log("Storage initialized successfully")
+    return storageInstance
+  } catch (error) {
+    console.error(`Error initializing Storage (attempt ${retryCount + 1}/${maxRetries + 1}):`, error)
+
+    // Retry logic with exponential backoff
+    if (retryCount < maxRetries) {
+      const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
+      console.log(`Retrying Storage initialization in ${delay}ms...`)
+
+      return new Promise((resolve) => {
+        setTimeout(async () => {
+          const result = await getStorage(retryCount + 1, maxRetries)
+          resolve(result)
+        }, delay)
+      })
     }
 
-    storage = getStorage(app)
-    console.log("Storage initialized successfully")
-    return storage
-  } catch (error) {
-    console.error("Error initializing Storage:", error)
-    return undefined
+    // If all retries fail, return null
+    console.warn("All Storage initialization attempts failed")
+    return null
   }
 }
 
-// Update the client-side initialization section to handle Firestore initialization properly
-// Replace the existing client-side initialization with this:
-if (typeof window !== "undefined") {
-  // Initialize app first
-  app = getFirebaseApp()
-
-  // Initialize auth with a delay to ensure Firebase is ready
-  setTimeout(() => {
-    try {
-      auth = getAuthInstance()
-    } catch (error) {
-      console.warn("Auth initialization delayed:", error)
-    }
-  }, 100)
-
-  // Initialize Firestore with a longer delay to ensure Firebase is fully loaded
-  setTimeout(() => {
-    try {
-      db = getFirestoreInstance()
-      console.log("Firestore initialized with delay")
-    } catch (error) {
-      console.warn("Firestore initialization failed after delay:", error)
-    }
-  }, 500)
-
-  // Initialize Storage with a delay
-  setTimeout(() => {
-    try {
-      storage = getStorageInstance()
-      console.log("Storage initialized with delay")
-    } catch (error) {
-      console.warn("Storage initialization failed after delay:", error)
-    }
-  }, 700)
+// Mock storage implementation for fallback
+export const createMockStorage = () => {
+  console.log("Creating mock storage implementation")
+  return {
+    ref: (path: string) => ({
+      put: async () => {
+        console.log("Mock storage: put operation on path", path)
+        return {
+          ref: {
+            getDownloadURL: async () => `https://mock-storage-url.com/${path}`,
+          },
+        }
+      },
+      getDownloadURL: async () => `https://mock-storage-url.com/${path}`,
+      delete: async () => console.log("Mock storage: delete operation on path", path),
+    }),
+  }
 }
 
-// Export initialized instances
-export { app as firebaseApp, auth, db, storage }
-
-// Utility functions to check service availability
+// Service availability check functions
 export function isFirebaseAvailable() {
-  return !!app
+  return !!firebaseApp
 }
 
 export function isAuthAvailable() {
-  return !!auth
+  return !!authInstance && authInitialized
 }
 
 export function isFirestoreAvailable() {
-  return !!db
+  return !!firestoreInstance && firestoreInitialized
 }
 
 export function isStorageAvailable() {
-  return !!storage
+  return !!storageInstance && storageInitialized
+}
+
+// For backward compatibility
+export const getAuthInstance = getAuth
+export const getFirestoreInstance = getFirestore
+export const getStorageInstance = getStorage
+
+// Export instances for direct access (will be null initially)
+export const auth = null
+export const db = null
+export const storage = null
+
+// Initialize services in the background with progressive delays
+if (typeof window !== "undefined") {
+  // Initialize Auth first
+  setTimeout(() => {
+    getAuth().catch((err) => console.warn("Background Auth initialization failed:", err))
+  }, 500)
+
+  // Initialize Firestore after Auth
+  setTimeout(() => {
+    getFirestore().catch((err) => console.warn("Background Firestore initialization failed:", err))
+  }, 1000)
+
+  // Initialize Storage last with the longest delay
+  setTimeout(() => {
+    getStorage().catch((err) => console.warn("Background Storage initialization failed:", err))
+  }, 1500)
+}
+
+// Safe storage upload function with fallback
+export async function safeUploadFile(path: string, file: File) {
+  try {
+    const storageInstance = await getStorage()
+
+    if (!storageInstance) {
+      console.warn("Storage not available, using mock implementation")
+      const mockStorage = createMockStorage()
+      const mockRef = mockStorage.ref(path)
+      await mockRef.put(file)
+      return `https://mock-storage-url.com/${path}`
+    }
+
+    // Import Firebase storage functions dynamically
+    const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage")
+
+    // Create a reference to the file location
+    const storageRef = ref(storageInstance, path)
+
+    // Upload the file
+    const snapshot = await uploadBytes(storageRef, file)
+
+    // Get download URL
+    const downloadURL = await getDownloadURL(snapshot.ref)
+    return downloadURL
+  } catch (error) {
+    console.error("Error uploading file:", error)
+    return null
+  }
 }

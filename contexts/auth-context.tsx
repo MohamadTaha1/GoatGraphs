@@ -2,14 +2,10 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  type User as FirebaseUser,
-} from "firebase/auth"
-import { auth, isAuthAvailable } from "@/lib/firebase"
+import type { User as FirebaseUser } from "firebase/auth"
+
+// Import the async Firebase functions
+import { getAuth, isFirebaseAvailable } from "@/lib/firebase"
 
 type UserRole = "admin" | "customer" | "superadmin"
 
@@ -92,70 +88,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser))
+        setIsLoading(false)
       } catch (error) {
         console.error("Error parsing stored user:", error)
+        setIsLoading(false)
       }
+    } else {
+      setIsLoading(false)
     }
 
-    // Add a retry mechanism for auth initialization
-    let retryCount = 0
-    const maxRetries = 3
+    // Set up Firebase Auth listener if Firebase is available
+    let unsubscribe: (() => void) | undefined
 
-    const setupAuthListener = () => {
-      if (!isAuthAvailable()) {
-        if (retryCount < maxRetries) {
-          console.warn(`Auth is not available yet, retrying (${retryCount + 1}/${maxRetries})...`)
-          retryCount++
-          setTimeout(setupAuthListener, 500) // Retry after 500ms
-          return
-        } else {
-          console.warn("Auth is not available after retries, using local authentication only")
-          setIsLoading(false)
-          return () => {}
-        }
+    const setupAuthListener = async () => {
+      if (!isFirebaseAvailable()) {
+        console.warn("Firebase is not available, using local authentication only")
+        return
       }
 
-      console.log("Setting up auth state listener")
+      try {
+        // Get auth instance asynchronously
+        const auth = await getAuth()
+        if (!auth) {
+          console.warn("Auth is not available, using local authentication only")
+          return
+        }
 
-      const unsubscribe = onAuthStateChanged(
-        auth,
-        async (firebaseUser) => {
-          console.log("Auth state changed:", firebaseUser ? "User logged in" : "No user")
+        // Import Firebase auth functions dynamically
+        const { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } =
+          await import("firebase/auth")
 
-          if (firebaseUser) {
-            // User is signed in
-            try {
-              const userWithRole = await getUserRole(firebaseUser)
-              setUser(userWithRole)
-              // Store user in localStorage for persistence
-              localStorage.setItem("auth_user", JSON.stringify(userWithRole))
-            } catch (error) {
-              console.error("Error getting user role:", error)
+        // Set up auth state listener
+        unsubscribe = onAuthStateChanged(
+          auth,
+          async (firebaseUser) => {
+            console.log("Auth state changed:", firebaseUser ? "User logged in" : "No user")
+
+            if (firebaseUser) {
+              // User is signed in
+              try {
+                const userWithRole = await getUserRole(firebaseUser)
+                setUser(userWithRole)
+                // Store user in localStorage for persistence
+                localStorage.setItem("auth_user", JSON.stringify(userWithRole))
+              } catch (error) {
+                console.error("Error getting user role:", error)
+                setUser(null)
+                localStorage.removeItem("auth_user")
+              }
+            } else {
+              // User is signed out
               setUser(null)
               localStorage.removeItem("auth_user")
             }
-          } else {
-            // User is signed out
-            setUser(null)
-            localStorage.removeItem("auth_user")
-          }
-          setIsLoading(false)
-        },
-        (error) => {
-          console.error("Auth state change error:", error)
-          setIsLoading(false)
-        },
-      )
-
-      // Cleanup subscription
-      return unsubscribe
+            setIsLoading(false)
+          },
+          (error) => {
+            console.error("Auth state change error:", error)
+            setIsLoading(false)
+          },
+        )
+      } catch (error) {
+        console.error("Error setting up auth listener:", error)
+        setIsLoading(false)
+      }
     }
 
     // Start the auth listener setup process
-    const cleanup = setupAuthListener()
+    setupAuthListener()
+
+    // Cleanup subscription
     return () => {
-      if (typeof cleanup === "function") {
-        cleanup()
+      if (typeof unsubscribe === "function") {
+        unsubscribe()
       }
     }
   }, [])
@@ -221,63 +226,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("Login attempt with:", email)
 
     try {
-      // If Firebase Auth is not available, use local authentication
-      if (!isAuthAvailable()) {
-        console.log("Using local authentication")
+      // Try Firebase Auth if available
+      if (isFirebaseAvailable()) {
+        try {
+          const auth = await getAuth()
+          if (auth) {
+            // Import Firebase auth functions dynamically
+            const { signInWithEmailAndPassword } = await import("firebase/auth")
 
-        // Check if this is a test user
-        const testUser = TEST_USERS[email]
-        if (testUser && testUser.password === password) {
-          const mockUser = {
-            uid: `local_${Date.now()}`,
-            email: email,
-            role: testUser.role as UserRole,
-            displayName: testUser.displayName,
-            photoURL: null,
+            const userCredential = await signInWithEmailAndPassword(auth, email, password)
+            const firebaseUser = userCredential.user
+
+            // Get user role
+            const userWithRole = await getUserRole(firebaseUser)
+
+            setUser(userWithRole)
+            localStorage.setItem("auth_user", JSON.stringify(userWithRole))
+
+            // Redirect based on role
+            if (userWithRole.role === "admin" || userWithRole.role === "superadmin") {
+              router.push("/admin")
+            } else {
+              router.push("/customer")
+            }
+
+            setIsLoading(false)
+            return true
           }
-
-          setUser(mockUser)
-          localStorage.setItem("auth_user", JSON.stringify(mockUser))
-
-          // Redirect based on role
-          if (mockUser.role === "admin" || mockUser.role === "superadmin") {
-            router.push("/admin")
-          } else {
-            router.push("/customer")
-          }
-
-          setIsLoading(false)
-          return true
+        } catch (error) {
+          console.error("Firebase login error:", error)
+          // Fall through to local authentication
         }
-
-        setIsLoading(false)
-        return false
       }
 
-      // Use Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const firebaseUser = userCredential.user
-
-      // Get user role
-      const userWithRole = await getUserRole(firebaseUser)
-
-      setUser(userWithRole)
-      localStorage.setItem("auth_user", JSON.stringify(userWithRole))
-
-      // Redirect based on role
-      if (userWithRole.role === "admin" || userWithRole.role === "superadmin") {
-        router.push("/admin")
-      } else {
-        router.push("/customer")
-      }
-
-      setIsLoading(false)
-      return true
-    } catch (error) {
-      console.error("Login error:", error)
-
-      // Try local authentication as fallback
-      const testUser = TEST_USERS[email]
+      // Use local authentication as fallback
+      console.log("Using local authentication")
+      const testUser = TEST_USERS[email as keyof typeof TEST_USERS]
       if (testUser && testUser.password === password) {
         const mockUser = {
           uid: `local_${Date.now()}`,
@@ -303,6 +287,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setIsLoading(false)
       return false
+    } catch (error) {
+      console.error("Login error:", error)
+      setIsLoading(false)
+      return false
     }
   }
 
@@ -311,55 +299,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log("Registration attempt with:", email)
 
     try {
-      // If Firebase Auth is not available, use local registration
-      if (!isAuthAvailable()) {
-        console.log("Using local registration")
+      // Try Firebase Auth if available
+      if (isFirebaseAvailable()) {
+        try {
+          const auth = await getAuth()
+          if (auth) {
+            // Import Firebase auth functions dynamically
+            const { createUserWithEmailAndPassword } = await import("firebase/auth")
 
-        // Create a mock user
-        const mockUser = {
-          uid: `local_${Date.now()}`,
-          email: email,
-          role: "customer" as UserRole,
-          displayName: displayName,
-          photoURL: null,
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+            const firebaseUser = userCredential.user
+
+            // Set user state
+            const newUser = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: "customer",
+              displayName: displayName,
+              photoURL: firebaseUser.photoURL,
+            }
+
+            setUser(newUser)
+            localStorage.setItem("auth_user", JSON.stringify(newUser))
+
+            // Redirect to customer page after registration
+            router.push("/customer")
+
+            setIsLoading(false)
+            return true
+          }
+        } catch (error) {
+          console.error("Firebase registration error:", error)
+          // Fall through to local registration
         }
-
-        // Store in localStorage
-        localStorage.setItem(
-          `user_${email}`,
-          JSON.stringify({
-            ...mockUser,
-            password: password, // Note: In a real app, never store passwords in plain text
-          }),
-        )
-
-        setUser(mockUser)
-        localStorage.setItem("auth_user", JSON.stringify(mockUser))
-
-        // Redirect to customer page
-        router.push("/customer")
-
-        setIsLoading(false)
-        return true
       }
 
-      // Use Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      const firebaseUser = userCredential.user
+      // Use local registration as fallback
+      console.log("Using local registration")
 
-      // Set user state
-      const newUser = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        role: "customer",
+      // Create a mock user
+      const mockUser = {
+        uid: `local_${Date.now()}`,
+        email: email,
+        role: "customer" as UserRole,
         displayName: displayName,
-        photoURL: firebaseUser.photoURL,
+        photoURL: null,
       }
 
-      setUser(newUser)
-      localStorage.setItem("auth_user", JSON.stringify(newUser))
+      // Store in localStorage
+      localStorage.setItem(
+        `user_${email}`,
+        JSON.stringify({
+          ...mockUser,
+          password: password, // Note: In a real app, never store passwords in plain text
+        }),
+      )
 
-      // Redirect to customer page after registration
+      setUser(mockUser)
+      localStorage.setItem("auth_user", JSON.stringify(mockUser))
+
+      // Redirect to customer page
       router.push("/customer")
 
       setIsLoading(false)
@@ -373,8 +372,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async (): Promise<void> => {
     try {
-      if (isAuthAvailable()) {
-        await signOut(auth)
+      if (isFirebaseAvailable()) {
+        try {
+          const auth = await getAuth()
+          if (auth) {
+            // Import Firebase auth functions dynamically
+            const { signOut } = await import("firebase/auth")
+            await signOut(auth)
+          }
+        } catch (error) {
+          console.error("Firebase logout error:", error)
+          // Continue with local logout
+        }
       }
 
       setUser(null)
