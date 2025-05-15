@@ -24,16 +24,19 @@ import { useToast } from "@/components/ui/use-toast"
 import { getProduct, type Product, useProducts } from "@/hooks/use-products"
 import { formatPrice } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
+import AuthRequiredModal from "@/components/auth-required-modal"
 
 export default function ProductPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [quantity, setQuantity] = useState(1)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+
   const { addItem } = useCart()
   const { toast } = useToast()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
 
   // Fetch related products
   const { products: allProducts } = useProducts()
@@ -89,10 +92,9 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const handleAddToCart = () => {
     if (!product) return
 
-    if (!user) {
-      // Redirect to login page with return URL
-      const returnUrl = encodeURIComponent(window.location.pathname)
-      router.push(`/login?returnUrl=${returnUrl}&action=addToCart`)
+    // If user is a guest, show auth modal
+    if (!user || isGuest) {
+      setShowAuthModal(true)
       return
     }
 
@@ -351,6 +353,14 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       )}
+
+      {/* Auth Modal */}
+      <AuthRequiredModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionType="cart"
+        returnUrl={`/customer/product/${params.id}`}
+      />
     </div>
   )
 }

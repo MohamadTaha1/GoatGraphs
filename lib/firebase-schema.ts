@@ -83,6 +83,8 @@ interface Order {
   shipping: number
   tax: number
   total: number
+  promoCodeId?: string
+  promoCodeDiscount?: number
   paymentMethod: string
   paymentStatus: "pending" | "paid" | "failed" | "refunded"
   orderStatus: "pending" | "processing" | "shipped" | "delivered" | "cancelled"
@@ -203,6 +205,25 @@ interface Coupon {
   createdAt: Date
 }
 
+// PromoCode Collection
+interface PromoCode {
+  id: string
+  code: string // 6-digit code
+  description: string
+  discountType: "percentage" | "fixed"
+  discountValue: number
+  minOrderValue?: number
+  maxDiscount?: number
+  usageLimit?: number
+  usageCount: number
+  startDate: Date
+  endDate: Date
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+  createdBy: string
+}
+
 // Reviews Collection
 interface Review {
   id: string
@@ -241,4 +262,5 @@ export type {
   Coupon,
   Review,
   Inventory,
+  PromoCode,
 }

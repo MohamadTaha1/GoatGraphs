@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -12,20 +12,28 @@ import { useCart } from "@/components/cart-provider"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
+import AuthRequiredModal from "@/components/auth-required-modal"
 
 export default function CartPage() {
   const { items = [], removeItem, updateQuantity, clearCart, total = 0 } = useCart()
   const { toast } = useToast()
   const [promoCode, setPromoCode] = useState("")
   const [isApplyingPromo, setIsApplyingPromo] = useState(false)
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const router = useRouter()
+  const [showAuthModal, setShowAuthModal] = useState(false)
+
+  useEffect(() => {
+    // Check if user is a guest
+    if (isGuest) {
+      setShowAuthModal(true)
+    }
+  }, [isGuest])
 
   // Redirect to login if user tries to checkout
   const handleCheckout = () => {
-    if (!user) {
-      const returnUrl = encodeURIComponent("/customer/checkout")
-      router.push(`/login?returnUrl=${returnUrl}&action=checkout`)
+    if (!user || isGuest) {
+      setShowAuthModal(true)
       return
     }
 
@@ -83,6 +91,14 @@ export default function CartPage() {
             <Link href="/customer/shop">Continue Shopping</Link>
           </Button>
         </div>
+
+        {/* Auth Modal */}
+        <AuthRequiredModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          actionType="cart"
+          returnUrl="/customer/cart"
+        />
       </div>
     )
   }
@@ -227,6 +243,14 @@ export default function CartPage() {
           </Card>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthRequiredModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionType="cart"
+        returnUrl="/customer/cart"
+      />
     </div>
   )
 }

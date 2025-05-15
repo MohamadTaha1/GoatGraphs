@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { CreditCard, ArrowLeft, CheckCircle2, Truck, Shield, Loader2 } from "lucide-react"
 import { collection, addDoc, Timestamp, query, orderBy, limit, getDocs } from "firebase/firestore"
 import { db, isFirestoreAvailable } from "@/lib/firebase"
+import { usePromoCodes } from "@/hooks/use-promo-codes"
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -42,6 +43,13 @@ export default function CheckoutPage() {
     cvv: "",
     notes: "",
   })
+
+  const [promoCode, setPromoCode] = useState("")
+  const [promoCodeError, setPromoCodeError] = useState<string | null>(null)
+  const [promoCodeSuccess, setPromoCodeSuccess] = useState<string | null>(null)
+  const [promoCodeDiscount, setPromoCodeDiscount] = useState(0)
+  const [appliedPromoCodeId, setAppliedPromoCodeId] = useState<string | null>(null)
+  const { validatePromoCode } = usePromoCodes()
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -70,11 +78,39 @@ export default function CheckoutPage() {
   const safeSubtotal = typeof subtotal === "number" ? subtotal : 0
   const deliveryFee = safeSubtotal >= 1000 ? 0 : 50
   const tax = safeSubtotal * 0.05 // 5% tax
-  const total = safeSubtotal + deliveryFee + tax
+  const total = safeSubtotal + deliveryFee + tax - promoCodeDiscount
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const applyPromoCode = async () => {
+    if (!promoCode.trim()) {
+      setPromoCodeError("Please enter a promo code")
+      return
+    }
+
+    try {
+      const result = await validatePromoCode(promoCode, subtotal)
+
+      if (result.valid) {
+        setPromoCodeDiscount(result.discount || 0)
+        setPromoCodeSuccess(result.message)
+        setPromoCodeError(null)
+        setAppliedPromoCodeId(result.promoCodeId)
+      } else {
+        setPromoCodeError(result.message)
+        setPromoCodeSuccess(null)
+        setPromoCodeDiscount(0)
+        setAppliedPromoCodeId(null)
+      }
+    } catch (err) {
+      setPromoCodeError("Error validating promo code")
+      setPromoCodeSuccess(null)
+      setPromoCodeDiscount(0)
+      setAppliedPromoCodeId(null)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -141,6 +177,8 @@ export default function CheckoutPage() {
             comment: "Order placed successfully",
           },
         ],
+        promoCodeId: appliedPromoCodeId || undefined,
+        promoCodeDiscount: promoCodeDiscount || undefined,
       }
 
       // Add order to Firestore
@@ -493,10 +531,34 @@ export default function CheckoutPage() {
                 <span>Tax (5%)</span>
                 <span>${tax.toFixed(2)}</span>
               </div>
+              {promoCodeDiscount > 0 && (
+                <div className="flex justify-between py-2">
+                  <dt className="text-sm font-medium">Discount</dt>
+                  <dd className="text-sm font-medium text-green-600">-${promoCodeDiscount.toFixed(2)}</dd>
+                </div>
+              )}
               <Separator className="my-2 bg-gold-700/50" />
               <div className="flex justify-between font-display font-bold text-lg">
                 <span>Total</span>
                 <span>${total.toFixed(2)}</span>
+              </div>
+              {/* Promo Code */}
+              <div className="mt-6">
+                <div className="flex space-x-2">
+                  <Input
+                    placeholder="Enter promo code"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button type="button" variant="outline" onClick={applyPromoCode} disabled={!!appliedPromoCodeId}>
+                    Apply
+                  </Button>
+                </div>
+
+                {promoCodeError && <p className="text-red-500 text-sm mt-1">{promoCodeError}</p>}
+
+                {promoCodeSuccess && <p className="text-green-500 text-sm mt-1">{promoCodeSuccess}</p>}
               </div>
               <div className="flex items-center mt-4">
                 <Truck className="h-5 w-5 text-gold-500 mr-2" />

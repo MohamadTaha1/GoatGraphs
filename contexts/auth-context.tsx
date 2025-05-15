@@ -19,11 +19,13 @@ interface User {
   role: UserRole
   displayName: string
   photoURL?: string | null
+  isGuest?: boolean
 }
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
+  isGuest: boolean
   login: (email: string, password: string) => Promise<boolean>
   register: (email: string, password: string, displayName: string) => Promise<boolean>
   logout: () => Promise<void>
@@ -391,9 +393,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const continueAsGuest = () => {
     const guestUser = {
       uid: `guest_${Date.now()}`,
-      email: "guest@example.com",
+      email: null,
       role: "customer" as UserRole,
-      displayName: "Guest User",
+      displayName: "Guest",
       photoURL: null,
       isGuest: true,
     }
@@ -404,7 +406,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, continueAsGuest }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isGuest: user?.isGuest || false,
+        login,
+        register,
+        logout,
+        continueAsGuest,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

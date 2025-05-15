@@ -13,17 +13,19 @@ import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { useVideos } from "@/hooks/use-videos"
 import { Calendar, Loader2 } from "lucide-react"
+import AuthRequiredModal from "@/components/auth-required-modal"
 
 export default function VideoRequestPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const { videos } = useVideos({ onlyAvailable: true })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   const playerId = searchParams.get("id")
   const playerName = searchParams.get("player")
@@ -37,10 +39,9 @@ export default function VideoRequestPage() {
   })
 
   useEffect(() => {
-    // Redirect if not logged in
-    if (!user) {
-      const returnUrl = encodeURIComponent(`/customer/videos/request?player=${playerName}&id=${playerId}`)
-      router.push(`/login?returnUrl=${returnUrl}&action=requestVideo`)
+    // Check if user is a guest
+    if (isGuest) {
+      setShowAuthModal(true)
       return
     }
 
@@ -51,7 +52,7 @@ export default function VideoRequestPage() {
         setSelectedPlayer(player)
       }
     }
-  }, [user, videos, playerId, playerName, router])
+  }, [user, isGuest, videos, playerId, playerName, router])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -64,6 +65,13 @@ export default function VideoRequestPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+
+    // Check if user is a guest
+    if (isGuest) {
+      setShowAuthModal(true)
+      return
+    }
+
     setIsSubmitting(true)
 
     // Simulate form submission
@@ -292,6 +300,14 @@ export default function VideoRequestPage() {
           </Card>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthRequiredModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionType="video"
+        returnUrl={`/customer/videos/request?player=${playerName}&id=${playerId}`}
+      />
     </div>
   )
 }

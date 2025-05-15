@@ -21,6 +21,7 @@ import {
   UserCog,
   Video,
   LogOut,
+  Tag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -237,6 +238,19 @@ export function AdminSidebar({ className }: SidebarProps) {
               >
                 <FileText className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />
                 {!isCollapsed && <span>Seed Data</span>}
+              </Button>
+            </Link>
+            <Link href="/admin/promo-codes" passHref>
+              <Button
+                variant={isActive("/admin/promo-codes") ? "secondary" : "ghost"}
+                size={isCollapsed ? "icon" : "default"}
+                className={cn(
+                  "w-full justify-start",
+                  isActive("/admin/promo-codes") && "bg-gold/10 text-gold hover:bg-gold/20 hover:text-gold",
+                )}
+              >
+                <Tag className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />
+                {!isCollapsed && <span>Promo Codes</span>}
               </Button>
             </Link>
           </div>
