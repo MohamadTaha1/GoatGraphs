@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import type { Timestamp } from "firebase/firestore"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
+import { getFirestoreFallbackData } from "@/lib/firebase"
 
 export interface OrderItem {
   productId: string
@@ -164,12 +165,31 @@ export function useOrders(options: { statusFilter?: string; userId?: string } = 
   const { statusFilter = "all", userId } = options
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  const [error, setError] = useState<Error | null | string>(null)
   const [firestoreAvailable, setFirestoreAvailable] = useState<boolean | null>(null)
 
+  const isFirestoreAvailable = async (): Promise<boolean> => {
+    try {
+      const db = getFirestoreInstance()
+      return !!db
+    } catch (e) {
+      return false
+    }
+  }
+
   useEffect(() => {
-    async function fetchOrders() {
+    const fetchOrders = async () => {
+      setLoading(true)
+      setError(null)
+
       try {
+        if (!(await isFirestoreAvailable())) {
+          console.log("Firestore not available, using fallback data")
+          const fallbackData = getFirestoreFallbackData("orders")
+          setOrders(fallbackData as Order[])
+          setLoading(false)
+          return
+        }
         // Skip if we're not in the browser
         if (typeof window === "undefined") {
           setLoading(false)
@@ -277,13 +297,10 @@ export function useOrders(options: { statusFilter?: string; userId?: string } = 
         }
       } catch (err) {
         console.error("Error fetching orders:", err)
-        setError(err instanceof Error ? err : new Error("Unknown error"))
-        // Use fallback orders on any error
-        if (userId) {
-          setOrders(FALLBACK_ORDERS.filter((order) => order.userId === userId))
-        } else {
-          setOrders(FALLBACK_ORDERS)
-        }
+        setError("Failed to load orders. Please try again later.")
+        // Use fallback data on error
+        const fallbackData = getFirestoreFallbackData("orders")
+        setOrders(fallbackData as Order[])
       } finally {
         setLoading(false)
       }
