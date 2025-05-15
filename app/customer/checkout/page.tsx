@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { useCart } from "@/hooks/use-cart"
+import { useCart } from "@/components/cart-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,7 +18,7 @@ import { createProductOrder } from "@/lib/order-service"
 export default function CheckoutPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { cart, clearCart, calculateTotal } = useCart()
+  const { items, clearCart, total } = useCart()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState("credit-card")
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -46,7 +46,7 @@ export default function CheckoutPage() {
       return
     }
 
-    if (cart.length === 0) {
+    if (items.length === 0) {
       router.push("/customer/shop")
       return
     }
@@ -57,7 +57,7 @@ export default function CheckoutPage() {
       name: user.displayName || "",
       email: user.email || "",
     }))
-  }, [user, cart, router])
+  }, [user, items, router])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -80,13 +80,30 @@ export default function CheckoutPage() {
     }
   }
 
+  // Calculate order totals
+  const calculateOrderTotals = () => {
+    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    const shipping = subtotal > 150 ? 0 : 15 // Free shipping over $150
+    const tax = subtotal * 0.1 // 10% tax
+    const orderTotal = subtotal + shipping + tax
+
+    return {
+      subtotal,
+      shipping,
+      tax,
+      total: orderTotal,
+    }
+  }
+
+  const { subtotal, shipping, tax } = calculateOrderTotals()
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
 
     try {
-      // Calculate totals
-      const { subtotal, shipping, tax, total } = calculateTotal()
+      // Get order totals
+      const totals = calculateOrderTotals()
 
       // Create order data
       const orderData = {
@@ -97,17 +114,17 @@ export default function CheckoutPage() {
           phone: formData.phone,
           address: formData.address,
         },
-        items: cart.map((item) => ({
-          productId: item.id,
+        items: items.map((item) => ({
+          productId: item.productId,
           productName: item.name,
           quantity: item.quantity,
           price: item.price,
-          imageUrl: item.imageUrl,
+          imageUrl: item.image,
         })),
-        subtotal,
-        shipping,
-        tax,
-        total,
+        subtotal: totals.subtotal,
+        shipping: totals.shipping,
+        tax: totals.tax,
+        total: totals.total,
         paymentMethod: paymentMethod === "credit-card" ? "Credit Card" : "PayPal",
         paymentStatus: "paid", // In a real app, this would be determined by payment processing
         orderStatus: "pending",
@@ -133,11 +150,9 @@ export default function CheckoutPage() {
     }
   }
 
-  if (!user || cart.length === 0) {
+  if (!user || items.length === 0) {
     return null // Handled by redirect
   }
-
-  const { subtotal, shipping, tax, total } = calculateTotal()
 
   return (
     <div className="container py-8">
@@ -338,13 +353,7 @@ export default function CheckoutPage() {
 
                   <TabsContent value="paypal">
                     <div className="text-center py-6">
-                      <Image
-                        src="/paypal-logo.png"
-                        alt="PayPal"
-                        width={120}
-                        height={60}
-                        className="mx-auto mb-4"
-                      />
+                      <Image src="/paypal-logo.png" alt="PayPal" width={120} height={60} className="mx-auto mb-4" />
                       <p className="text-offwhite/80">
                         You will be redirected to PayPal to complete your payment after reviewing your order.
                       </p>
@@ -383,16 +392,16 @@ export default function CheckoutPage() {
             <CardHeader>
               <CardTitle className="text-gold">Order Summary</CardTitle>
               <CardDescription className="text-offwhite/60">
-                {cart.length} {cart.length === 1 ? "item" : "items"} in your cart
+                {items.length} {items.length === 1 ? "item" : "items"} in your cart
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {cart.map((item) => (
+                {items.map((item) => (
                   <div key={item.id} className="flex items-start gap-3">
                     <div className="h-16 w-16 bg-black-300 rounded flex items-center justify-center overflow-hidden relative">
                       <Image
-                        src={item.imageUrl || "/placeholder.svg?height=64&width=64"}
+                        src={item.image || "/placeholder.svg?height=64&width=64"}
                         alt={item.name}
                         fill
                         className="object-contain"
@@ -426,7 +435,7 @@ export default function CheckoutPage() {
                   <Separator className="my-2 bg-gold/20" />
                   <div className="flex justify-between font-bold">
                     <span className="text-offwhite">Total</span>
-                    <span className="text-gold">${formatPrice(total)}</span>
+                    <span className="text-gold">${formatPrice(calculateOrderTotals().total)}</span>
                   </div>
                 </div>
               </div>
