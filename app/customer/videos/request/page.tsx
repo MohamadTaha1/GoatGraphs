@@ -14,7 +14,6 @@ import { useAuth } from "@/contexts/auth-context"
 import { useVideos } from "@/hooks/use-videos"
 import { Calendar, Loader2 } from "lucide-react"
 import AuthRequiredModal from "@/components/auth-required-modal"
-import { createVideoOrder } from "@/lib/order-service"
 
 export default function VideoRequestPage() {
   const router = useRouter()
@@ -27,7 +26,6 @@ export default function VideoRequestPage() {
   const [submitted, setSubmitted] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [orderId, setOrderId] = useState("")
 
   const playerId = searchParams.get("id")
   const playerName = searchParams.get("player")
@@ -65,7 +63,7 @@ export default function VideoRequestPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
 
     // Check if user is a guest
@@ -76,57 +74,15 @@ export default function VideoRequestPage() {
 
     setIsSubmitting(true)
 
-    try {
-      // Get the price from the selected player or use a default
-      const price = selectedPlayer?.price || 399.99
-
-      // Create the order data
-      const orderData = {
-        userId: user.uid,
-        customerInfo: {
-          name: user.displayName || "Customer",
-          email: user.email || "",
-        },
-        subtotal: price,
-        shipping: 0,
-        tax: 0,
-        total: price,
-        paymentMethod: "Credit Card", // This would be dynamic in a real app
-        paymentStatus: "paid", // This would be dynamic in a real app
-        orderStatus: "pending",
-        videoRequest: {
-          player: formData.player,
-          occasion: formData.occasion,
-          recipientName: formData.recipientName,
-          message: formData.message,
-          deliveryDate: formData.deliveryDate,
-          status: "pending",
-          price: price,
-          thumbnailUrl:
-            selectedPlayer?.thumbnailUrl ||
-            `/placeholder.svg?height=200&width=200&query=${encodeURIComponent(formData.player)}`,
-        },
-      }
-
-      // Create the order in Firestore
-      const newOrderId = await createVideoOrder(orderData)
-      setOrderId(newOrderId)
-
+    // Simulate form submission
+    setTimeout(() => {
+      setIsSubmitting(false)
       setSubmitted(true)
       toast({
         title: "Request submitted",
         description: "Your video request has been submitted successfully.",
       })
-    } catch (error) {
-      console.error("Error submitting video request:", error)
-      toast({
-        title: "Submission failed",
-        description: "There was a problem submitting your request. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
+    }, 1500)
   }
 
   // Fallback player data if not found in videos
@@ -168,23 +124,12 @@ export default function VideoRequestPage() {
                     Thank you for your video request. We'll notify you once {displayPlayer.playerName} has accepted your
                     request.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Button
-                      onClick={() => router.push("/customer/videos")}
-                      className="bg-gold-gradient hover:bg-gold-shine text-black"
-                    >
-                      Back to Videos
-                    </Button>
-                    {orderId && (
-                      <Button
-                        onClick={() => router.push(`/customer/orders`)}
-                        variant="outline"
-                        className="border-gold text-gold hover:bg-gold/10"
-                      >
-                        View My Orders
-                      </Button>
-                    )}
-                  </div>
+                  <Button
+                    onClick={() => router.push("/customer/videos")}
+                    className="bg-gold-gradient hover:bg-gold-shine text-black"
+                  >
+                    Back to Videos
+                  </Button>
                 </div>
               </CardContent>
             </Card>

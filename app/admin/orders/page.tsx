@@ -5,39 +5,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Download,
-  Search,
-  Loader2,
-  AlertCircle,
-  Info,
-  ShoppingBag,
-  Video,
-} from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, Download, Search, Loader2, AlertCircle, Info } from "lucide-react"
 import Link from "next/link"
 import { useOrders, updateOrder } from "@/hooks/use-orders"
 import { formatPrice } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
 
 export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [orderTypeTab, setOrderTypeTab] = useState<"all" | "product" | "video">("all")
   const ordersPerPage = 8
   const { toast } = useToast()
 
   // Fetch orders using our custom hook
   const { orders, loading, error, firestoreAvailable, setOrders } = useOrders({
     statusFilter,
-    orderType: orderTypeTab,
   })
 
   // Filter orders based on search term
@@ -46,10 +31,7 @@ export default function OrdersPage() {
       !searchTerm ||
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerInfo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerInfo.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.orderType === "video" &&
-        "videoRequest" in order &&
-        order.videoRequest.player.toLowerCase().includes(searchTerm.toLowerCase()))
+      order.customerInfo.email.toLowerCase().includes(searchTerm.toLowerCase())
     )
   })
 
@@ -60,15 +42,12 @@ export default function OrdersPage() {
       case "pending":
         return "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30"
       case "processing":
-      case "accepted":
         return "bg-orange-500/20 text-orange-500 hover:bg-orange-500/30"
       case "shipped":
         return "bg-violet-500/20 text-violet-500 hover:bg-violet-500/30"
       case "delivered":
-      case "completed":
         return "bg-green-500/20 text-green-500 hover:bg-green-500/30"
       case "cancelled":
-      case "rejected":
         return "bg-red-500/20 text-red-500 hover:bg-red-500/30"
       default:
         return "bg-gray-500/20 text-gray-500 hover:bg-gray-500/30"
@@ -93,7 +72,7 @@ export default function OrdersPage() {
     }
   }
 
-  const handleStatusChange = async (orderId: string, newStatus: string, orderType: "product" | "video") => {
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
     try {
       // Check if Firestore is available
       if (!firestoreAvailable) {
@@ -124,29 +103,11 @@ export default function OrdersPage() {
 
       if (success) {
         // Update the local state
-        setOrders(
-          orders.map((order) => {
-            if (order.id === orderId) {
-              // For video orders, also update the videoRequest status
-              if (order.orderType === "video" && "videoRequest" in order) {
-                return {
-                  ...order,
-                  orderStatus: newStatus,
-                  videoRequest: {
-                    ...order.videoRequest,
-                    status: newStatus,
-                  },
-                }
-              }
-              return { ...order, orderStatus: newStatus }
-            }
-            return order
-          }),
-        )
+        setOrders(orders.map((order) => (order.id === orderId ? { ...order, orderStatus: newStatus } : order)))
 
         toast({
           title: "Status updated",
-          description: `${orderType === "video" ? "Video request" : "Order"} status changed to ${newStatus}`,
+          description: `Order status changed to ${newStatus}`,
         })
       } else {
         throw new Error("Failed to update order")
@@ -155,7 +116,7 @@ export default function OrdersPage() {
       console.error("Error updating order status:", error)
       toast({
         title: "Update failed",
-        description: "Failed to update the status. Please try again.",
+        description: "Failed to update the order status. Please try again.",
         variant: "destructive",
       })
     }
@@ -191,7 +152,7 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-display font-bold mb-2 bg-gold-gradient bg-clip-text text-transparent">Orders</h1>
-        <p className="text-gray-400 font-body">Manage and track customer orders and video requests</p>
+        <p className="text-gray-400 font-body">Manage and track customer orders</p>
       </div>
 
       {firestoreAvailable === false && (
@@ -206,7 +167,7 @@ export default function OrdersPage() {
 
       <Card className="border-gold-700">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-5">
-          <CardTitle className="text-gold-500 font-display">Orders & Requests</CardTitle>
+          <CardTitle className="text-gold-500 font-display">Orders List</CardTitle>
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" className="border-gold-700 text-gold-500">
               <Download className="mr-2 h-4 w-4" />
@@ -215,96 +176,103 @@ export default function OrdersPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs
-            defaultValue="all"
-            className="mb-6"
-            onValueChange={(value) => setOrderTypeTab(value as "all" | "product" | "video")}
-          >
-            <TabsList className="grid w-full grid-cols-3 max-w-md mb-4 bg-charcoal border border-gold/20">
-              <TabsTrigger
-                value="all"
-                className="text-gold data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
-              >
-                All Orders
-              </TabsTrigger>
-              <TabsTrigger
-                value="product"
-                className="text-gold data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
-              >
-                Products
-              </TabsTrigger>
-              <TabsTrigger
-                value="video"
-                className="text-gold data-[state=active]:bg-gold-gradient data-[state=active]:text-black font-display"
-              >
-                Videos
-              </TabsTrigger>
-            </TabsList>
-
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by order ID, customer, or player..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 border-gold-700"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px] border-gold-700">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="processing">Processing</SelectItem>
-                  <SelectItem value="accepted">Accepted</SelectItem>
-                  <SelectItem value="shipped">Shipped</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by order ID or customer..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 border-gold-700"
+              />
             </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] border-gold-700">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="shipped">Shipped</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <TabsContent value="all" className="mt-0">
-              <OrdersTable
-                orders={filteredOrders}
-                currentPage={currentPage}
-                ordersPerPage={ordersPerPage}
-                getStatusColor={getStatusColor}
-                formatDate={formatDate}
-                handleStatusChange={handleStatusChange}
-                firestoreAvailable={firestoreAvailable}
-              />
-            </TabsContent>
-
-            <TabsContent value="product" className="mt-0">
-              <OrdersTable
-                orders={filteredOrders.filter((order) => order.orderType === "product")}
-                currentPage={currentPage}
-                ordersPerPage={ordersPerPage}
-                getStatusColor={getStatusColor}
-                formatDate={formatDate}
-                handleStatusChange={handleStatusChange}
-                firestoreAvailable={firestoreAvailable}
-              />
-            </TabsContent>
-
-            <TabsContent value="video" className="mt-0">
-              <OrdersTable
-                orders={filteredOrders.filter((order) => order.orderType === "video")}
-                currentPage={currentPage}
-                ordersPerPage={ordersPerPage}
-                getStatusColor={getStatusColor}
-                formatDate={formatDate}
-                handleStatusChange={handleStatusChange}
-                firestoreAvailable={firestoreAvailable}
-              />
-            </TabsContent>
-          </Tabs>
+          <div className="rounded-md border border-gold-700">
+            <Table>
+              <TableHeader>
+                <TableRow className="font-body border-gold-700/50">
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.length > 0 ? (
+                  filteredOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage).map((order) => (
+                    <TableRow key={order.id} className="border-gold-700/50">
+                      <TableCell className="font-display">{order.id}</TableCell>
+                      <TableCell className="font-body">
+                        <div>
+                          <p>{order.customerInfo.name}</p>
+                          <p className="text-xs text-gray-400">{order.customerInfo.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-body">{formatDate(order.createdAt)}</TableCell>
+                      <TableCell className="font-body">
+                        {order.items.length} {order.items.length === 1 ? "item" : "items"}
+                      </TableCell>
+                      <TableCell className="font-body">${formatPrice(order.total)}</TableCell>
+                      <TableCell>
+                        <Select
+                          defaultValue={order.orderStatus}
+                          onValueChange={(value) => handleStatusChange(order.id, value)}
+                          disabled={!firestoreAvailable}
+                        >
+                          <SelectTrigger className={`w-[130px] ${getStatusColor(order.orderStatus)} border-none`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="processing">Processing</SelectItem>
+                            <SelectItem value="shipped">Shipped</SelectItem>
+                            <SelectItem value="delivered">Delivered</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          asChild
+                          size="icon"
+                          variant="ghost"
+                          className="hover:bg-gold-500/10 hover:text-gold-500"
+                        >
+                          <Link href={`/admin/orders/${order.id}`}>
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">View</span>
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      No orders found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between space-x-2 py-4">
@@ -339,114 +307,6 @@ export default function OrdersPage() {
           )}
         </CardContent>
       </Card>
-    </div>
-  )
-}
-
-function OrdersTable({
-  orders,
-  currentPage,
-  ordersPerPage,
-  getStatusColor,
-  formatDate,
-  handleStatusChange,
-  firestoreAvailable,
-}) {
-  return (
-    <div className="rounded-md border border-gold-700">
-      <Table>
-        <TableHeader>
-          <TableRow className="font-body border-gold-700/50">
-            <TableHead>Order ID</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Customer</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Details</TableHead>
-            <TableHead>Total</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.length > 0 ? (
-            orders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage).map((order) => (
-              <TableRow key={order.id} className="border-gold-700/50">
-                <TableCell className="font-display">{order.id.slice(0, 10)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="border-gold/30">
-                    {order.orderType === "product" ? (
-                      <ShoppingBag className="h-3 w-3 mr-1" />
-                    ) : (
-                      <Video className="h-3 w-3 mr-1" />
-                    )}
-                    {order.orderType === "product" ? "Product" : "Video"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-body">
-                  <div>
-                    <p>{order.customerInfo.name}</p>
-                    <p className="text-xs text-gray-400">{order.customerInfo.email}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="font-body">{formatDate(order.createdAt)}</TableCell>
-                <TableCell className="font-body">
-                  {order.orderType === "product" ? (
-                    <span>
-                      {order.items?.length || 0} {order.items?.length === 1 ? "item" : "items"}
-                    </span>
-                  ) : (
-                    <span>{order.videoRequest?.player || "Unknown player"}</span>
-                  )}
-                </TableCell>
-                <TableCell className="font-body">${formatPrice(order.total)}</TableCell>
-                <TableCell>
-                  <Select
-                    defaultValue={order.orderStatus}
-                    onValueChange={(value) => handleStatusChange(order.id, value, order.orderType)}
-                    disabled={!firestoreAvailable}
-                  >
-                    <SelectTrigger className={`w-[130px] ${getStatusColor(order.orderStatus)} border-none`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {order.orderType === "product" ? (
-                        <>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="processing">Processing</SelectItem>
-                          <SelectItem value="shipped">Shipped</SelectItem>
-                          <SelectItem value="delivered">Delivered</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="accepted">Accepted</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button asChild size="icon" variant="ghost" className="hover:bg-gold-500/10 hover:text-gold-500">
-                    <Link href={`/admin/orders/${order.id}`}>
-                      <Eye className="h-4 w-4" />
-                      <span className="sr-only">View</span>
-                    </Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={8} className="h-24 text-center">
-                No orders found.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
     </div>
   )
 }
