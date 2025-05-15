@@ -201,6 +201,13 @@ export function AdminSidebar({ className, isOpen, onClose }: SidebarProps) {
                   isCollapsed={isCollapsed}
                 />
                 <SidebarItem
+                  icon={<Video className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />}
+                  label="Videos"
+                  href="/admin/videos"
+                  isActive={isActive("/admin/videos")}
+                  isCollapsed={isCollapsed}
+                />
+                <SidebarItem
                   icon={<Tag className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />}
                   label="Promo Codes"
                   href="/admin/promo-codes"
@@ -251,13 +258,6 @@ export function AdminSidebar({ className, isOpen, onClose }: SidebarProps) {
                 {isCollapsed ? "CONT" : "CONTENT"}
               </h3>
               <div className="space-y-1">
-                <SidebarItem
-                  icon={<Video className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />}
-                  label="Videos"
-                  href="/admin/videos"
-                  isActive={isActive("/admin/videos")}
-                  isCollapsed={isCollapsed}
-                />
                 <SidebarItem
                   icon={<ImageIcon className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />}
                   label="Banners"

@@ -1,127 +1,148 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import Image from "next/image"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { CalendarIcon, Info } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { useVideos } from "@/hooks/use-videos"
-import { Calendar, Loader2 } from "lucide-react"
-import AuthRequiredModal from "@/components/auth-required-modal"
+import { AuthRequiredModal } from "@/components/auth-required-modal"
 import { createVideoOrder } from "@/lib/order-service"
 
+// Define the form schema
+const formSchema = z.object({
+  player: z.string().min(1, { message: "Please select a player" }),
+  occasion: z.string().min(1, { message: "Please select an occasion" }),
+  recipientName: z.string().min(1, { message: "Recipient name is required" }),
+  message: z.string().min(10, { message: "Message must be at least 10 characters" }).max(500, {
+    message: "Message must not exceed 500 characters",
+  }),
+  deliveryDate: z.date({
+    required_error: "Please select a delivery date",
+  }),
+})
+
+// Define the players and occasions
+const players = [
+  { id: "messi", name: "Lionel Messi", price: 499.99 },
+  { id: "ronaldo", name: "Cristiano Ronaldo", price: 499.99 },
+  { id: "mbappe", name: "Kylian Mbappé", price: 399.99 },
+  { id: "neymar", name: "Neymar Jr.", price: 399.99 },
+  { id: "haaland", name: "Erling Haaland", price: 349.99 },
+  { id: "salah", name: "Mohamed Salah", price: 349.99 },
+  { id: "lewandowski", name: "Robert Lewandowski", price: 299.99 },
+  { id: "de-bruyne", name: "Kevin De Bruyne", price: 299.99 },
+  { id: "kane", name: "Harry Kane", price: 299.99 },
+  { id: "benzema", name: "Karim Benzema", price: 299.99 },
+]
+
+const occasions = [
+  "Birthday",
+  "Anniversary",
+  "Graduation",
+  "Wedding",
+  "New Baby",
+  "Congratulations",
+  "Thank You",
+  "Get Well Soon",
+  "Holiday Greeting",
+  "Other",
+]
+
 export default function VideoRequestPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { toast } = useToast()
-  const { user, isGuest } = useAuth()
-  const { videos } = useVideos({ onlyAvailable: true })
-
+  const { user } = useAuth()
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [selectedPlayer, setSelectedPlayer] = useState(null)
-  const [showAuthModal, setShowAuthModal] = useState(false)
-  const [orderId, setOrderId] = useState("")
+  const { toast } = useToast()
+  const router = useRouter()
 
-  const playerId = searchParams.get("id")
-  const playerName = searchParams.get("player")
-
-  const [formData, setFormData] = useState({
-    player: playerName || "",
-    occasion: "",
-    recipientName: "",
-    message: "",
-    deliveryDate: "",
+  // Initialize the form
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      player: "",
+      occasion: "",
+      recipientName: "",
+      message: "",
+    },
   })
 
-  useEffect(() => {
-    // Check if user is a guest
-    if (isGuest) {
-      setShowAuthModal(true)
+  // Handle form submission
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    // Check if user is logged in
+    if (!user) {
+      setIsAuthModalOpen(true)
       return
     }
-
-    // Find the selected player from videos
-    if (videos.length > 0 && playerId) {
-      const player = videos.find((v) => v.id === playerId)
-      if (player) {
-        setSelectedPlayer(player)
-      }
-    }
-  }, [user, isGuest, videos, playerId, playerName, router])
-
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSelectChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    // Check if user is a guest
-    if (isGuest) {
-      setShowAuthModal(true)
-      return
-    }
-
-    setIsSubmitting(true)
 
     try {
-      // Get the price from the selected player or use a default
-      const price = selectedPlayer?.price || 399.99
+      setIsSubmitting(true)
 
-      // Create the order data
+      // Get the selected player's price
+      const selectedPlayer = players.find((p) => p.id === values.player)
+      const price = selectedPlayer ? selectedPlayer.price : 399.99
+      const playerName = selectedPlayer ? selectedPlayer.name : values.player
+
+      // Create the video order
       const orderData = {
         userId: user.uid,
         customerInfo: {
           name: user.displayName || "Customer",
           email: user.email || "",
+          phone: user.phoneNumber || "",
+          address: {
+            line1: "",
+            city: "",
+            postalCode: "",
+            country: "",
+          },
+        },
+        videoRequest: {
+          player: playerName,
+          occasion: values.occasion,
+          recipientName: values.recipientName,
+          message: values.message,
+          deliveryDate: format(values.deliveryDate, "PPP"),
+          status: "pending",
+          price: price,
         },
         subtotal: price,
         shipping: 0,
         tax: 0,
         total: price,
-        paymentMethod: "Credit Card", // This would be dynamic in a real app
-        paymentStatus: "paid", // This would be dynamic in a real app
+        paymentMethod: "Credit Card",
+        paymentStatus: "paid",
         orderStatus: "pending",
-        videoRequest: {
-          player: formData.player,
-          occasion: formData.occasion,
-          recipientName: formData.recipientName,
-          message: formData.message,
-          deliveryDate: formData.deliveryDate,
-          status: "pending",
-          price: price,
-          thumbnailUrl:
-            selectedPlayer?.thumbnailUrl ||
-            `/placeholder.svg?height=200&width=200&query=${encodeURIComponent(formData.player)}`,
-        },
       }
 
-      // Create the order in Firestore
-      const newOrderId = await createVideoOrder(orderData)
-      setOrderId(newOrderId)
+      const orderId = await createVideoOrder(orderData)
 
-      setSubmitted(true)
-      toast({
-        title: "Request submitted",
-        description: "Your video request has been submitted successfully.",
-      })
+      if (orderId) {
+        toast({
+          title: "Video Request Submitted",
+          description: "Your video request has been submitted successfully!",
+        })
+        router.push(`/customer/checkout/success?orderId=${orderId}&type=video`)
+      } else {
+        throw new Error("Failed to create order")
+      }
     } catch (error) {
       console.error("Error submitting video request:", error)
       toast({
-        title: "Submission failed",
-        description: "There was a problem submitting your request. Please try again.",
+        title: "Error",
+        description: "There was an error submitting your request. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -129,239 +150,236 @@ export default function VideoRequestPage() {
     }
   }
 
-  // Fallback player data if not found in videos
-  const fallbackPlayer = {
-    id: playerId || "unknown",
-    playerName: playerName || "Selected Player",
-    price: 399.99,
-    thumbnailUrl: "/images/video-thumbnails/messi-greeting.png",
-    availability: "7-14 days",
-  }
-
-  const displayPlayer = selectedPlayer || fallbackPlayer
+  // Get the selected player's price
+  const selectedPlayerId = form.watch("player")
+  const selectedPlayer = players.find((p) => p.id === selectedPlayerId)
+  const price = selectedPlayer ? selectedPlayer.price : 399.99
 
   return (
     <div className="container py-8">
-      <h1 className="text-3xl font-display font-bold mb-8 bg-gold-gradient bg-clip-text text-transparent">
-        Request a Video from {displayPlayer.playerName}
+      <h1 className="text-3xl font-display font-bold mb-2 bg-gold-gradient bg-clip-text text-transparent">
+        Request a Personalized Video
       </h1>
+      <p className="text-offwhite/70 mb-8">
+        Get a personalized video message from your favorite football star for yourself or as a gift.
+      </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        <div>
-          {submitted ? (
-            <Card className="border-gold">
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gold/20 mb-4">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-8 w-8 text-gold"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-display font-bold mb-2 text-gold">Request Submitted!</h3>
-                  <p className="text-offwhite/80 mb-4">
-                    Thank you for your video request. We'll notify you once {displayPlayer.playerName} has accepted your
-                    request.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Button
-                      onClick={() => router.push("/customer/videos")}
-                      className="bg-gold-gradient hover:bg-gold-shine text-black"
-                    >
-                      Back to Videos
-                    </Button>
-                    {orderId && (
-                      <Button
-                        onClick={() => router.push(`/customer/orders`)}
-                        variant="outline"
-                        className="border-gold text-gold hover:bg-gold/10"
-                      >
-                        View My Orders
-                      </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <Card className="border-gold/30 bg-charcoal">
+            <CardHeader>
+              <CardTitle className="text-gold font-display">Video Request Form</CardTitle>
+              <CardDescription>Fill out the form below to request your personalized video.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="player"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-offwhite">Select Player</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="border-gold/30 bg-charcoal/50">
+                              <SelectValue placeholder="Select a player" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-charcoal border-gold/30">
+                            {players.map((player) => (
+                              <SelectItem key={player.id} value={player.id}>
+                                {player.name} - ${player.price}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="player" className="block text-sm font-medium mb-1">
-                  Selected Player
-                </Label>
-                <Input
-                  id="player"
-                  name="player"
-                  value={formData.player}
-                  disabled
-                  className="w-full border-gold/20 bg-charcoal/50"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="occasion" className="block text-sm font-medium mb-1">
-                  Occasion
-                </Label>
-                <Select value={formData.occasion} onValueChange={(value) => handleSelectChange("occasion", value)}>
-                  <SelectTrigger className="border-gold/20">
-                    <SelectValue placeholder="Select an occasion" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="birthday">Birthday</SelectItem>
-                    <SelectItem value="anniversary">Anniversary</SelectItem>
-                    <SelectItem value="graduation">Graduation</SelectItem>
-                    <SelectItem value="wedding">Wedding</SelectItem>
-                    <SelectItem value="congratulations">Congratulations</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="recipientName" className="block text-sm font-medium mb-1">
-                  Recipient's Name
-                </Label>
-                <Input
-                  id="recipientName"
-                  name="recipientName"
-                  value={formData.recipientName}
-                  onChange={handleChange}
-                  required
-                  className="w-full border-gold/20"
-                  placeholder="Who is this video for?"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="message" className="block text-sm font-medium mb-1">
-                  Message Instructions
-                </Label>
-                <Textarea
-                  id="message"
-                  name="message"
-                  value={formData.message}
-                  onChange={handleChange}
-                  required
-                  className="w-full min-h-[150px] border-gold/20"
-                  placeholder="Provide details about what you'd like the player to say in the video"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="deliveryDate" className="block text-sm font-medium mb-1">
-                  Desired Delivery Date
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="deliveryDate"
-                    name="deliveryDate"
-                    type="date"
-                    value={formData.deliveryDate}
-                    onChange={handleChange}
-                    required
-                    className="w-full border-gold/20"
-                    min={new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}
                   />
-                  <Calendar className="h-5 w-5 text-gold" />
-                </div>
-                <p className="text-xs text-offwhite/60 mt-1">Please allow at least 14 days for video delivery</p>
-              </div>
 
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-gold-gradient hover:bg-gold-shine text-black"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
-                  </>
-                ) : (
-                  "Submit Request"
-                )}
-              </Button>
-            </form>
-          )}
+                  <FormField
+                    control={form.control}
+                    name="occasion"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-offwhite">Occasion</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="border-gold/30 bg-charcoal/50">
+                              <SelectValue placeholder="Select an occasion" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-charcoal border-gold/30">
+                            {occasions.map((occasion) => (
+                              <SelectItem key={occasion} value={occasion}>
+                                {occasion}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="recipientName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-offwhite">Recipient Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter the name of the person receiving the video"
+                            className="border-gold/30 bg-charcoal/50"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          This is the name of the person who will receive the video message.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-offwhite">Message Instructions</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Enter detailed instructions for the video message"
+                            className="min-h-32 border-gold/30 bg-charcoal/50"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Provide specific details about what you want the player to say in the video.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="deliveryDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel className="text-offwhite">Requested Delivery Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal border-gold/30 bg-charcoal/50",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                              >
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-charcoal border-gold/30" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date < new Date() || date > new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormDescription>
+                          Select a date when you would like to receive the video. Please allow at least 7-14 days for
+                          processing.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-gold-gradient hover:bg-gold-shine text-black"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Processing..." : "Submit Request"}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
         </div>
 
         <div>
-          <Card className="border-gold/30 bg-charcoal">
+          <Card className="border-gold/30 bg-charcoal sticky top-8">
             <CardHeader>
-              <div className="flex items-center">
-                <div className="relative w-16 h-16 rounded-full overflow-hidden mr-4">
-                  <Image
-                    src={displayPlayer.thumbnailUrl || "/placeholder.svg"}
-                    alt={displayPlayer.playerName}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div>
-                  <CardTitle className="text-gold">{displayPlayer.playerName}</CardTitle>
-                  <CardDescription className="text-offwhite/60">Video Request Details</CardDescription>
-                </div>
-              </div>
+              <CardTitle className="text-gold font-display">Order Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-gold/10 rounded-lg">
-                <span className="text-offwhite">Price</span>
-                <span className="text-2xl font-display font-bold text-gold">${displayPlayer.price?.toFixed(2)}</span>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-offwhite">Personalized Video</span>
+                  <span className="font-bold text-gold">${price.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-offwhite">Processing Fee</span>
+                  <span className="font-bold text-offwhite">$0.00</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-offwhite">Tax</span>
+                  <span className="font-bold text-offwhite">$0.00</span>
+                </div>
+                <div className="border-t border-gold/20 pt-4 flex justify-between items-center">
+                  <span className="text-offwhite font-bold">Total</span>
+                  <span className="font-bold text-xl text-gold">${price.toFixed(2)}</span>
+                </div>
               </div>
 
-              <div>
-                <h3 className="font-display font-semibold text-offwhite">Video Length</h3>
-                <p className="text-offwhite/80">
-                  Videos are typically 30-60 seconds long, depending on the player and the message.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-display font-semibold text-offwhite">Delivery Time</h3>
-                <p className="text-offwhite/80">
-                  Most videos are delivered within {displayPlayer.availability}, but this can vary based on the player's
-                  schedule and availability.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-display font-semibold text-offwhite">Payment</h3>
-                <p className="text-offwhite/80">
-                  You'll only be charged when the player accepts your request. If they're unable to fulfill it, you
-                  won't be charged.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-display font-semibold text-offwhite">Ownership</h3>
-                <p className="text-offwhite/80">
-                  You'll own the video for personal use, but commercial rights remain with the player and our platform.
-                </p>
+              <div className="mt-6 bg-gold/10 p-4 rounded-md">
+                <div className="flex items-start">
+                  <Info className="h-5 w-5 text-gold mr-2 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-gold">Important Information</h4>
+                    <ul className="text-sm text-offwhite/70 mt-2 space-y-2">
+                      <li>• Videos are typically delivered within 7-14 days.</li>
+                      <li>• All video requests are subject to player availability.</li>
+                      <li>• You will receive an email notification when your video is ready.</li>
+                      <li>• Videos are non-refundable once the request has been accepted by the player.</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex-col space-y-4">
               <Button
-                variant="outline"
-                onClick={() => router.push("/customer/videos")}
-                className="w-full border-gold text-gold hover:bg-gold/10"
+                type="submit"
+                className="w-full bg-gold-gradient hover:bg-gold-shine text-black"
+                onClick={form.handleSubmit(onSubmit)}
+                disabled={isSubmitting}
               >
-                Back to Available Players
+                {isSubmitting ? "Processing..." : "Submit Request"}
               </Button>
             </CardFooter>
           </Card>
         </div>
       </div>
 
-      {/* Auth Modal */}
       <AuthRequiredModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        actionType="video"
-        returnUrl={`/customer/videos/request?player=${playerName}&id=${playerId}`}
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        actionType="request a video"
+        returnUrl="/customer/videos/request"
       />
     </div>
   )
