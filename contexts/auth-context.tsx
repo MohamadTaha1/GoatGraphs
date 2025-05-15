@@ -27,6 +27,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>
   register: (email: string, password: string, displayName: string) => Promise<boolean>
   logout: () => Promise<void>
+  continueAsGuest: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -94,46 +95,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (!isAuthAvailable()) {
-      console.warn("Auth is not available, using local authentication only")
-      setIsLoading(false)
-      return () => {}
-    }
+    // Add a retry mechanism for auth initialization
+    let retryCount = 0
+    const maxRetries = 3
 
-    console.log("Setting up auth state listener")
+    const setupAuthListener = () => {
+      if (!isAuthAvailable()) {
+        if (retryCount < maxRetries) {
+          console.warn(`Auth is not available yet, retrying (${retryCount + 1}/${maxRetries})...`)
+          retryCount++
+          setTimeout(setupAuthListener, 500) // Retry after 500ms
+          return
+        } else {
+          console.warn("Auth is not available after retries, using local authentication only")
+          setIsLoading(false)
+          return () => {}
+        }
+      }
 
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser) => {
-        console.log("Auth state changed:", firebaseUser ? "User logged in" : "No user")
+      console.log("Setting up auth state listener")
 
-        if (firebaseUser) {
-          // User is signed in
-          try {
-            const userWithRole = await getUserRole(firebaseUser)
-            setUser(userWithRole)
-            // Store user in localStorage for persistence
-            localStorage.setItem("auth_user", JSON.stringify(userWithRole))
-          } catch (error) {
-            console.error("Error getting user role:", error)
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        async (firebaseUser) => {
+          console.log("Auth state changed:", firebaseUser ? "User logged in" : "No user")
+
+          if (firebaseUser) {
+            // User is signed in
+            try {
+              const userWithRole = await getUserRole(firebaseUser)
+              setUser(userWithRole)
+              // Store user in localStorage for persistence
+              localStorage.setItem("auth_user", JSON.stringify(userWithRole))
+            } catch (error) {
+              console.error("Error getting user role:", error)
+              setUser(null)
+              localStorage.removeItem("auth_user")
+            }
+          } else {
+            // User is signed out
             setUser(null)
             localStorage.removeItem("auth_user")
           }
-        } else {
-          // User is signed out
-          setUser(null)
-          localStorage.removeItem("auth_user")
-        }
-        setIsLoading(false)
-      },
-      (error) => {
-        console.error("Auth state change error:", error)
-        setIsLoading(false)
-      },
-    )
+          setIsLoading(false)
+        },
+        (error) => {
+          console.error("Auth state change error:", error)
+          setIsLoading(false)
+        },
+      )
 
-    // Cleanup subscription
-    return () => unsubscribe()
+      // Cleanup subscription
+      return unsubscribe
+    }
+
+    // Start the auth listener setup process
+    const cleanup = setupAuthListener()
+    return () => {
+      if (typeof cleanup === "function") {
+        cleanup()
+      }
+    }
   }, [])
 
   // Redirect based on auth state and current path
@@ -366,7 +388,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  return <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>{children}</AuthContext.Provider>
+  const continueAsGuest = () => {
+    const guestUser = {
+      uid: `guest_${Date.now()}`,
+      email: "guest@example.com",
+      role: "customer" as UserRole,
+      displayName: "Guest User",
+      photoURL: null,
+      isGuest: true,
+    }
+
+    setUser(guestUser)
+    localStorage.setItem("auth_user", JSON.stringify(guestUser))
+    router.push("/customer")
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, continueAsGuest }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

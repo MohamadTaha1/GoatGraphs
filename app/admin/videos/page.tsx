@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useVideos } from "@/hooks/use-videos"
-import { Loader2, Plus, Search, Edit, Trash2, Play, Eye } from "lucide-react"
+import { Loader2, Plus, Search, Edit, Trash2, Play, Eye, AlertCircle, Info } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,8 +21,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { deleteDoc, doc } from "firebase/firestore"
-import { db } from "@/lib/firebase/firestore"
+import { getFirestoreInstance } from "@/lib/firebase/firestore"
 import { useToast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function VideosPage() {
   const router = useRouter()
@@ -32,7 +33,7 @@ export default function VideosPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [videoToDelete, setVideoToDelete] = useState(null)
 
-  const { videos, loading, error } = useVideos()
+  const { videos, loading, error, firestoreAvailable } = useVideos()
 
   // Filter videos based on search term and category
   const filteredVideos = videos.filter((video) => {
@@ -52,6 +53,18 @@ export default function VideosPage() {
     if (!videoToDelete) return
 
     try {
+      if (!firestoreAvailable) {
+        toast({
+          title: "Offline Mode",
+          description: "Cannot delete videos in offline mode.",
+          variant: "destructive",
+        })
+        setDeleteDialogOpen(false)
+        setVideoToDelete(null)
+        return
+      }
+
+      const db = getFirestoreInstance()
       await deleteDoc(doc(db, "videos", videoToDelete.id))
       toast({
         title: "Video deleted",
@@ -80,6 +93,16 @@ export default function VideosPage() {
           <Plus className="mr-2 h-4 w-4" /> Add New Video
         </Button>
       </div>
+
+      {firestoreAvailable === false && (
+        <Alert variant="warning" className="bg-amber-500/10 border-amber-500/50 mb-4">
+          <Info className="h-4 w-4 text-amber-500" />
+          <AlertTitle className="text-amber-500">Offline Mode</AlertTitle>
+          <AlertDescription>
+            You are viewing demo data in offline mode. Firestore is not available. Changes will not be saved.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="mb-8">
         <CardContent className="pt-6">
@@ -120,8 +143,14 @@ export default function VideosPage() {
         </div>
       ) : error ? (
         <div className="text-center py-20">
-          <p className="text-red-500 mb-4">Failed to load videos. Please try again later.</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
+          <Alert variant="destructive" className="max-w-md mx-auto">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>Failed to load videos. Please try again later.</AlertDescription>
+          </Alert>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
+          </Button>
         </div>
       ) : filteredVideos.length === 0 ? (
         <div className="text-center py-20">
@@ -139,8 +168,11 @@ export default function VideosPage() {
               <div className="flex flex-col md:flex-row">
                 <div className="relative w-full md:w-48 h-48">
                   <Image
-                    src={video.thumbnailUrl || "/placeholder.svg"}
-                    alt={video.title || video.playerName}
+                    src={
+                      video.thumbnailUrl ||
+                      `/placeholder.svg?height=200&width=200&query=${encodeURIComponent(video.playerName || "Football Player")}`
+                    }
+                    alt={video.title || video.playerName || "Video"}
                     fill
                     className="object-cover"
                   />
@@ -157,13 +189,13 @@ export default function VideosPage() {
                 <CardContent className="flex-1 p-6">
                   <div className="flex flex-col md:flex-row justify-between">
                     <div>
-                      <h2 className="text-2xl font-bold">{video.playerName}</h2>
+                      <h2 className="text-2xl font-bold">{video.playerName || "Unnamed Player"}</h2>
                       <p className="text-muted-foreground">{video.title || "Personalized Video Message"}</p>
 
                       <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-4">
                         <div>
                           <span className="text-sm text-muted-foreground">Price:</span>
-                          <p className="font-semibold">${video.price?.toFixed(2)}</p>
+                          <p className="font-semibold">${video.price?.toFixed(2) || "399.99"}</p>
                         </div>
                         <div>
                           <span className="text-sm text-muted-foreground">Category:</span>

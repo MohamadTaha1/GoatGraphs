@@ -1,27 +1,30 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useVideos } from "@/hooks/use-videos"
-import { Play, Clock, Calendar, User, MessageSquare, Loader2, Info, ChevronRight } from "lucide-react"
+import { Play, Clock, Calendar, User, MessageSquare, Loader2, Info, Send, AlertCircle } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function VideosPage() {
   const router = useRouter()
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [isPlayerDialogOpen, setIsPlayerDialogOpen] = useState(false)
-  const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false)
   const [isExamplePlaying, setIsExamplePlaying] = useState(false)
+  const [occasionType, setOccasionType] = useState("birthday")
   const { user } = useAuth()
 
   // Use the hook to fetch videos from Firestore
-  const { videos, loading, error } = useVideos({ onlyAvailable: true })
-
-  console.log("Videos from Firestore:", videos)
+  const { videos, loading, error, firestoreAvailable } = useVideos({ onlyAvailable: true })
 
   // Example video data
   const exampleVideo = {
@@ -34,91 +37,21 @@ export default function VideosPage() {
     price: 499.99,
   }
 
-  // If no videos are available from Firestore, use these fallback players
-  const fallbackPlayers = [
-    {
-      id: "1",
-      playerName: "Lionel Messi",
-      position: "Forward",
-      team: "Inter Miami CF",
-      price: 499.99,
-      thumbnailUrl: "/images/video-thumbnails/messi-greeting.png",
-      availability: "7-10 days",
-      description: "Get a personalized greeting from the football legend himself.",
-    },
-    {
-      id: "2",
-      playerName: "Cristiano Ronaldo",
-      position: "Forward",
-      team: "Al Nassr FC",
-      price: 599.99,
-      thumbnailUrl: "/images/video-thumbnails/ronaldo-birthday.png",
-      availability: "10-14 days",
-      description: "Make someone's birthday special with a message from CR7.",
-    },
-    {
-      id: "3",
-      playerName: "Kylian Mbappé",
-      position: "Forward",
-      team: "Real Madrid",
-      price: 399.99,
-      thumbnailUrl: "/images/video-thumbnails/mbappe-congrats.png",
-      availability: "5-7 days",
-      description: "Celebrate achievements with a special message from Mbappé.",
-    },
-    {
-      id: "4",
-      playerName: "Erling Haaland",
-      position: "Forward",
-      team: "Manchester City",
-      price: 349.99,
-      thumbnailUrl: "/images/video-thumbnails/haaland-greeting.png",
-      availability: "7-10 days",
-      description: "Get motivated with a powerful message from the goal machine.",
-    },
-    {
-      id: "5",
-      playerName: "Neymar Jr",
-      position: "Forward",
-      team: "Al Hilal SFC",
-      price: 449.99,
-      thumbnailUrl: "/images/video-thumbnails/neymar-message.png",
-      availability: "10-14 days",
-      description: "Make any occasion special with a message from Neymar.",
-    },
-    {
-      id: "6",
-      playerName: "Kevin De Bruyne",
-      position: "Midfielder",
-      team: "Manchester City",
-      price: 349.99,
-      thumbnailUrl: "/images/video-thumbnails/de-bruyne-message.png",
-      availability: "5-7 days",
-      description: "Get a personalized message from the midfield maestro.",
-    },
-  ]
-
-  // Transform videos data to player format if available
-  const availablePlayers =
-    videos && videos.length > 0
-      ? videos.map((video) => ({
-          id: video.id,
-          playerName: video.playerName,
-          position: video.position || "Player",
-          team: video.team || "Professional Team",
-          price: video.price,
-          thumbnailUrl:
-            video.thumbnailUrl || `/images/video-thumbnails/${video.playerName.toLowerCase().replace(/\s+/g, "-")}.png`,
-          availability: video.availability || "7-14 days",
-          description:
-            video.description ||
-            `Request a personalized video message from ${video.playerName}, one of the world's top football players.`,
-        }))
-      : fallbackPlayers
-
-  useEffect(() => {
-    console.log("Available players:", availablePlayers)
-  }, [availablePlayers])
+  // Transform videos data to player format
+  const availablePlayers = videos.map((video) => ({
+    id: video.id,
+    playerName: video.playerName || "Football Star",
+    position: video.position || "Player",
+    team: video.team || "Professional Team",
+    price: video.price || 399.99,
+    thumbnailUrl:
+      video.thumbnailUrl ||
+      `/placeholder.svg?height=200&width=200&query=${encodeURIComponent(video.playerName || "Football Player")}`,
+    availability: video.availability || "7-14 days",
+    description:
+      video.description || `Request a personalized video message from ${video.playerName || "this football star"}.`,
+    category: video.category || "greeting",
+  }))
 
   const handleRequestVideo = (player) => {
     if (!user) {
@@ -138,6 +71,19 @@ export default function VideosPage() {
     setIsPlayerDialogOpen(true)
   }
 
+  const handleRequestSubmit = (e) => {
+    e.preventDefault()
+
+    if (!user) {
+      // Redirect to login page with return URL
+      const returnUrl = encodeURIComponent(`/customer/videos/request`)
+      router.push(`/login?returnUrl=${returnUrl}&action=requestVideo`)
+      return
+    }
+
+    router.push(`/customer/videos/request`)
+  }
+
   return (
     <div className="container py-8">
       <div className="text-center mb-8">
@@ -149,6 +95,14 @@ export default function VideosPage() {
           occasions, or just to surprise a fan.
         </p>
       </div>
+
+      {firestoreAvailable === false && (
+        <Alert variant="warning" className="bg-amber-500/10 border-amber-500/50 mb-8">
+          <Info className="h-4 w-4 text-amber-500" />
+          <AlertTitle className="text-amber-500">Offline Mode</AlertTitle>
+          <AlertDescription>You are viewing demo data in offline mode. Firestore is not available.</AlertDescription>
+        </Alert>
+      )}
 
       {/* Example Video Section */}
       <div className="mb-16 bg-charcoal border border-gold/30 rounded-lg overflow-hidden">
@@ -208,35 +162,206 @@ export default function VideosPage() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button
-                onClick={() => setIsProcessDialogOpen(true)}
-                variant="outline"
-                className="border-gold text-gold hover:bg-gold/10"
-              >
-                <Info className="mr-2 h-4 w-4" />
-                How It Works
-              </Button>
-              <Button
-                onClick={() => document.getElementById("available-players")?.scrollIntoView({ behavior: "smooth" })}
-                className="bg-gold-gradient hover:bg-gold-shine text-black"
-              >
-                <MessageSquare className="mr-2 h-4 w-4" />
-                Request a Video
-              </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* How It Works Section */}
+      <div className="mb-16">
+        <h2 className="text-3xl font-display font-bold text-gold mb-8 text-center">How It Works</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-charcoal/50 p-6 rounded-lg border border-gold/20 relative">
+            <div className="absolute -top-4 -left-4 bg-gold rounded-full w-8 h-8 flex items-center justify-center text-black font-bold">
+              1
+            </div>
+            <div className="flex items-center mb-4">
+              <div className="bg-gold/10 rounded-full p-3">
+                <User className="h-6 w-6 text-gold" />
+              </div>
+            </div>
+            <h3 className="text-xl font-display font-bold text-gold mb-2">Choose a Player</h3>
+            <p className="text-offwhite/80">
+              Browse our roster of available football stars and select your favorite player. Each player has their own
+              pricing and availability window.
+            </p>
+          </div>
+
+          <div className="bg-charcoal/50 p-6 rounded-lg border border-gold/20 relative">
+            <div className="absolute -top-4 -left-4 bg-gold rounded-full w-8 h-8 flex items-center justify-center text-black font-bold">
+              2
+            </div>
+            <div className="flex items-center mb-4">
+              <div className="bg-gold/10 rounded-full p-3">
+                <MessageSquare className="h-6 w-6 text-gold" />
+              </div>
+            </div>
+            <h3 className="text-xl font-display font-bold text-gold mb-2">Submit Your Request</h3>
+            <p className="text-offwhite/80">
+              Fill out our request form with details about the recipient and the occasion. Be specific about what you'd
+              like the player to say in the video.
+            </p>
+          </div>
+
+          <div className="bg-charcoal/50 p-6 rounded-lg border border-gold/20 relative">
+            <div className="absolute -top-4 -left-4 bg-gold rounded-full w-8 h-8 flex items-center justify-center text-black font-bold">
+              3
+            </div>
+            <div className="flex items-center mb-4">
+              <div className="bg-gold/10 rounded-full p-3">
+                <Clock className="h-6 w-6 text-gold" />
+              </div>
+            </div>
+            <h3 className="text-xl font-display font-bold text-gold mb-2">Processing Time</h3>
+            <p className="text-offwhite/80">
+              Once your request is approved, the player will record your video message. This typically takes 5-14 days
+              depending on the player's schedule.
+            </p>
+          </div>
+
+          <div className="bg-charcoal/50 p-6 rounded-lg border border-gold/20 relative">
+            <div className="absolute -top-4 -left-4 bg-gold rounded-full w-8 h-8 flex items-center justify-center text-black font-bold">
+              4
+            </div>
+            <div className="flex items-center mb-4">
+              <div className="bg-gold/10 rounded-full p-3">
+                <Play className="h-6 w-6 text-gold" />
+              </div>
+            </div>
+            <h3 className="text-xl font-display font-bold text-gold mb-2">Receive Your Video</h3>
+            <p className="text-offwhite/80">
+              Your personalized video will be delivered to your account. You can download it, share it, and keep it
+              forever as a special memory.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-gold/10 p-6 rounded-lg mt-8">
+          <div className="flex items-start">
+            <div className="bg-gold/20 rounded-full p-2 mr-4 mt-1">
+              <Info className="h-5 w-5 text-gold" />
+            </div>
+            <div>
+              <h3 className="text-xl font-display font-bold text-gold mb-2">Satisfaction Guarantee</h3>
+              <p className="text-offwhite/80">
+                If you're not completely satisfied with your video, we'll work with you to make it right. Our goal is to
+                create a memorable experience that exceeds your expectations.
+              </p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Request Video Form Section */}
+      <div className="mb-16" id="request-form">
+        <h2 className="text-3xl font-display font-bold text-gold mb-8 text-center">Request a Video</h2>
+
+        <div className="bg-charcoal border border-gold/30 rounded-lg p-8">
+          <form onSubmit={handleRequestSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="recipient-name" className="text-gold">
+                    Recipient's Name
+                  </Label>
+                  <Input
+                    id="recipient-name"
+                    placeholder="Who is this video for?"
+                    className="bg-charcoal/50 border-gold/30 focus:border-gold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="occasion" className="text-gold">
+                    Occasion
+                  </Label>
+                  <RadioGroup
+                    defaultValue="birthday"
+                    className="grid grid-cols-2 gap-4 mt-2"
+                    onValueChange={setOccasionType}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="birthday" id="birthday" className="text-gold" />
+                      <Label htmlFor="birthday">Birthday</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="congratulations" id="congratulations" className="text-gold" />
+                      <Label htmlFor="congratulations">Congratulations</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="motivation" id="motivation" className="text-gold" />
+                      <Label htmlFor="motivation">Motivation</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="other" id="other" className="text-gold" />
+                      <Label htmlFor="other">Other</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <div>
+                  <Label htmlFor="delivery-date" className="text-gold">
+                    Desired Delivery Date
+                  </Label>
+                  <Input
+                    id="delivery-date"
+                    type="date"
+                    className="bg-charcoal/50 border-gold/30 focus:border-gold"
+                    min={new Date().toISOString().split("T")[0]}
+                    required
+                  />
+                  <p className="text-xs text-offwhite/60 mt-1">Please allow 7-14 days for delivery</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="message-details" className="text-gold">
+                    Message Details
+                  </Label>
+                  <Textarea
+                    id="message-details"
+                    placeholder="What would you like the player to say? Include any specific details you want mentioned."
+                    className="bg-charcoal/50 border-gold/30 focus:border-gold h-32"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="preferred-player" className="text-gold">
+                    Preferred Player (Optional)
+                  </Label>
+                  <Input
+                    id="preferred-player"
+                    placeholder="Do you have a specific player in mind?"
+                    className="bg-charcoal/50 border-gold/30 focus:border-gold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-4">
+              <Button type="submit" className="bg-gold-gradient hover:bg-gold-shine text-black px-8 py-6 text-lg">
+                <Send className="mr-2 h-5 w-5" />
+                Submit Video Request
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       {/* Available Players Section */}
       <div id="available-players" className="scroll-mt-8">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-display font-bold text-gold">Available Players</h2>
-          <p className="text-offwhite/60">
-            Starting from ${Math.min(...availablePlayers.map((p) => p.price))?.toFixed(2)}
-          </p>
-        </div>
+        <h2 className="text-3xl font-display font-bold text-gold mb-8 text-center">Available Players</h2>
+
+        {availablePlayers.length > 0 && (
+          <div className="flex justify-end mb-4">
+            <p className="text-offwhite/60">
+              Starting from ${Math.min(...availablePlayers.map((p) => p.price))?.toFixed(2)}
+            </p>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center py-20">
@@ -245,9 +370,23 @@ export default function VideosPage() {
           </div>
         ) : error ? (
           <div className="text-center py-20">
-            <p className="text-red-500 mb-4">Failed to load players. Please try again later.</p>
-            <Button onClick={() => window.location.reload()} className="bg-gold text-black hover:bg-gold/80">
+            <Alert variant="destructive" className="max-w-md mx-auto">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>Failed to load players. Please try again later.</AlertDescription>
+            </Alert>
+            <Button onClick={() => window.location.reload()} className="bg-gold text-black hover:bg-gold/80 mt-4">
               Retry
+            </Button>
+          </div>
+        ) : availablePlayers.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-offwhite/80 mb-4">No players are currently available for video requests.</p>
+            <Button
+              onClick={() => document.getElementById("request-form")?.scrollIntoView({ behavior: "smooth" })}
+              className="bg-gold-gradient hover:bg-gold-shine text-black"
+            >
+              Submit a Custom Request
             </Button>
           </div>
         ) : (
@@ -296,93 +435,6 @@ export default function VideosPage() {
           </div>
         )}
       </div>
-
-      {/* Process Dialog */}
-      <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-gold">How Our Video Messages Work</DialogTitle>
-            <DialogDescription>Learn about our process from request to delivery</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
-                <div className="flex items-center mb-3">
-                  <div className="bg-gold/10 rounded-full p-2 mr-3">
-                    <User className="h-5 w-5 text-gold" />
-                  </div>
-                  <h3 className="text-lg font-display font-bold text-gold">1. Choose a Player</h3>
-                </div>
-                <p className="text-offwhite/80">
-                  Browse our roster of available football stars and select your favorite player. Each player has their
-                  own pricing and availability window.
-                </p>
-              </div>
-
-              <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
-                <div className="flex items-center mb-3">
-                  <div className="bg-gold/10 rounded-full p-2 mr-3">
-                    <MessageSquare className="h-5 w-5 text-gold" />
-                  </div>
-                  <h3 className="text-lg font-display font-bold text-gold">2. Submit Your Request</h3>
-                </div>
-                <p className="text-offwhite/80">
-                  Fill out our request form with details about the recipient and the occasion. Be specific about what
-                  you'd like the player to say in the video.
-                </p>
-              </div>
-
-              <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
-                <div className="flex items-center mb-3">
-                  <div className="bg-gold/10 rounded-full p-2 mr-3">
-                    <Clock className="h-5 w-5 text-gold" />
-                  </div>
-                  <h3 className="text-lg font-display font-bold text-gold">3. Processing Time</h3>
-                </div>
-                <p className="text-offwhite/80">
-                  Once your request is approved, the player will record your video message. This typically takes 5-14
-                  days depending on the player's schedule.
-                </p>
-              </div>
-
-              <div className="bg-charcoal/50 p-4 rounded-lg border border-gold/20">
-                <div className="flex items-center mb-3">
-                  <div className="bg-gold/10 rounded-full p-2 mr-3">
-                    <Play className="h-5 w-5 text-gold" />
-                  </div>
-                  <h3 className="text-lg font-display font-bold text-gold">4. Receive Your Video</h3>
-                </div>
-                <p className="text-offwhite/80">
-                  Your personalized video will be delivered to your account. You can download it, share it, and keep it
-                  forever as a special memory.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-gold/10 p-4 rounded-lg">
-              <h3 className="text-lg font-display font-bold text-gold mb-2">Satisfaction Guarantee</h3>
-              <p className="text-offwhite/80">
-                If you're not completely satisfied with your video, we'll work with you to make it right. Our goal is to
-                create a memorable experience that exceeds your expectations.
-              </p>
-            </div>
-
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setIsProcessDialogOpen(false)
-                  document.getElementById("available-players")?.scrollIntoView({ behavior: "smooth" })
-                }}
-                className="bg-gold-gradient hover:bg-gold-shine text-black"
-              >
-                Browse Available Players
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Player Details Dialog */}
       <Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>

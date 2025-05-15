@@ -49,6 +49,7 @@ export function getFirebaseApp() {
   return createFirebaseApp()
 }
 
+// Modify the getAuthInstance function to handle the "Component auth has not been registered yet" error
 export function getAuthInstance() {
   if (typeof window === "undefined") {
     return undefined
@@ -65,9 +66,16 @@ export function getAuthInstance() {
       return undefined
     }
 
-    auth = getAuth(app)
-    console.log("Auth initialized successfully")
-    return auth
+    // Add a try-catch block specifically for Auth initialization
+    try {
+      auth = getAuth(app)
+      console.log("Auth initialized successfully")
+      return auth
+    } catch (error) {
+      console.error("Error initializing Firebase Auth:", error)
+      console.warn("Auth component not registered yet, will retry later")
+      return undefined
+    }
   } catch (error) {
     console.error("Error initializing Firebase Auth:", error)
     return undefined
@@ -124,10 +132,20 @@ export function getStorageInstance() {
   }
 }
 
-// Initialize services on client side
+// Update the client-side initialization section to handle potential errors
+// Replace the existing client-side initialization with this:
 if (typeof window !== "undefined") {
+  // Initialize app first
   app = getFirebaseApp()
-  auth = getAuthInstance()
+
+  // Initialize auth with a delay to ensure Firebase is ready
+  setTimeout(() => {
+    try {
+      auth = getAuthInstance()
+    } catch (error) {
+      console.warn("Auth initialization delayed:", error)
+    }
+  }, 100)
 
   // Try to initialize Firestore but don't throw if it fails
   try {
