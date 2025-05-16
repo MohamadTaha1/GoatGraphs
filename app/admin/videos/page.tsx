@@ -1,266 +1,335 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, Plus, Video, MessageSquare, CheckCircle, Clock, X, Play, Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useVideos } from "@/hooks/use-videos"
-import { Loader2, Plus, Search, Edit, Trash2, Play, Eye, AlertCircle, Info } from "lucide-react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { deleteDoc, doc } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { useToast } from "@/components/ui/use-toast"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
+import { useVideos, useVideoRequests, deleteVideo, updateVideoRequestStatus } from "@/hooks/use-videos"
 
-export default function VideosPage() {
+export default function AdminVideosPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { videos, loading: loadingVideos } = useVideos()
+  const { requests, loading: loadingRequests } = useVideoRequests()
+  const [activeTab, setActiveTab] = useState("videos")
   const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [videoToDelete, setVideoToDelete] = useState(null)
 
-  const { videos, loading, error, firestoreAvailable } = useVideos()
+  useEffect(() => {
+    // Set active tab based on URL parameter
+    const tab = searchParams.get("tab")
+    if (tab === "requests") {
+      setActiveTab("requests")
+    } else {
+      setActiveTab("videos")
+    }
+  }, [searchParams])
 
-  // Filter videos based on search term and category
-  const filteredVideos = videos.filter((video) => {
-    const matchesSearch =
-      video.playerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      video.title?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = categoryFilter === "all" || video.category === categoryFilter
-    return matchesSearch && matchesCategory
-  })
-
-  const handleDeleteClick = (video) => {
-    setVideoToDelete(video)
-    setDeleteDialogOpen(true)
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    router.push(`/admin/videos?tab=${value}`)
   }
 
-  const handleDeleteConfirm = async () => {
-    if (!videoToDelete) return
-
-    try {
-      if (!firestoreAvailable) {
+  const handleDeleteVideo = async (id: string) => {
+    if (confirm("Are you sure you want to delete this video? This action cannot be undone.")) {
+      const success = await deleteVideo(id)
+      if (success) {
         toast({
-          title: "Offline Mode",
-          description: "Cannot delete videos in offline mode.",
+          title: "Video deleted",
+          description: "The video has been successfully deleted.",
+        })
+        // Refresh the page to update the video list
+        router.refresh()
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete the video. Please try again.",
           variant: "destructive",
         })
-        setDeleteDialogOpen(false)
-        setVideoToDelete(null)
-        return
       }
+    }
+  }
 
-      const db = getFirestoreInstance()
-      await deleteDoc(doc(db, "videos", videoToDelete.id))
+  const handleUpdateRequestStatus = async (id: string, status: "accepted" | "rejected") => {
+    const success = await updateVideoRequestStatus(id, status)
+    if (success) {
       toast({
-        title: "Video deleted",
-        description: `${videoToDelete.playerName}'s video has been removed.`,
+        title: status === "accepted" ? "Request accepted" : "Request rejected",
+        description:
+          status === "accepted"
+            ? "The video request has been accepted and is now in progress."
+            : "The video request has been rejected.",
       })
-      // Force refresh the page to update the list
+      // Refresh the page to update the request list
       router.refresh()
-    } catch (error) {
-      console.error("Error deleting video:", error)
+    } else {
       toast({
-        title: "Error deleting video",
-        description: "There was a problem deleting the video. Please try again.",
+        title: "Error",
+        description: "Failed to update the request status. Please try again.",
         variant: "destructive",
       })
-    } finally {
-      setDeleteDialogOpen(false)
-      setVideoToDelete(null)
+    }
+  }
+
+  const filteredVideos = videos.filter(
+    (video) =>
+      video.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      video.player.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const filteredRequests = requests.filter(
+    (request) =>
+      request.player.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.occasion.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-blue-500/20 text-blue-500"
+      case "accepted":
+        return "bg-orange-500/20 text-orange-500"
+      case "completed":
+        return "bg-green-500/20 text-green-500"
+      case "rejected":
+        return "bg-red-500/20 text-red-500"
+      default:
+        return "bg-gray-500/20 text-gray-500"
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Clock className="h-4 w-4" />
+      case "accepted":
+        return <Play className="h-4 w-4" />
+      case "completed":
+        return <CheckCircle className="h-4 w-4" />
+      case "rejected":
+        return <X className="h-4 w-4" />
+      default:
+        return <Clock className="h-4 w-4" />
+    }
+  }
+
+  // Format date from Firestore timestamp
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return "N/A"
+
+    try {
+      // Handle Firestore Timestamp
+      if (timestamp.toDate) {
+        return timestamp.toDate().toLocaleDateString()
+      }
+
+      // Handle Date object or string
+      return new Date(timestamp).toLocaleDateString()
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return "Invalid date"
     }
   }
 
   return (
     <div className="container py-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold">Personalized Videos</h1>
-        <Button onClick={() => router.push("/admin/videos/add")}>
-          <Plus className="mr-2 h-4 w-4" /> Add New Video
-        </Button>
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold mb-4 md:mb-0">Videos Management</h1>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button asChild>
+            <Link href="/admin/videos/add">
+              <Plus className="mr-2 h-4 w-4" /> Add New Video
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {firestoreAvailable === false && (
-        <Alert variant="warning" className="bg-amber-500/10 border-amber-500/50 mb-4">
-          <Info className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="text-amber-500">Offline Mode</AlertTitle>
-          <AlertDescription>
-            You are viewing demo data in offline mode. Firestore is not available. Changes will not be saved.
-          </AlertDescription>
-        </Alert>
-      )}
+      <div className="mb-6">
+        <Input
+          placeholder="Search videos or requests..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-md"
+        />
+      </div>
 
-      <Card className="mb-8">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by player or title..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="videos" className="flex items-center">
+            <Video className="mr-2 h-4 w-4" /> Videos
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="flex items-center">
+            <MessageSquare className="mr-2 h-4 w-4" /> Customer Requests
+            {requests.length > 0 && (
+              <Badge variant="outline" className="ml-2 bg-primary/20">
+                {requests.filter((r) => r.status === "pending").length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="videos">
+          {loadingVideos ? (
+            <div className="flex justify-center items-center h-[40vh]">
+              <Loader2 className="h-8 w-8 animate-spin mr-2" />
+              <span>Loading videos...</span>
             </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="greeting">Greeting</SelectItem>
-                <SelectItem value="birthday">Birthday</SelectItem>
-                <SelectItem value="congratulations">Congratulations</SelectItem>
-                <SelectItem value="motivation">Motivation</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="text-right text-sm text-muted-foreground">
-              {filteredVideos.length} video{filteredVideos.length !== 1 ? "s" : ""} found
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {loading ? (
-        <div className="flex justify-center items-center py-20">
-          <Loader2 className="h-10 w-10 animate-spin mr-4" />
-          <p className="text-lg">Loading videos...</p>
-        </div>
-      ) : error ? (
-        <div className="text-center py-20">
-          <Alert variant="destructive" className="max-w-md mx-auto">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>Failed to load videos. Please try again later.</AlertDescription>
-          </Alert>
-          <Button onClick={() => window.location.reload()} className="mt-4">
-            Retry
-          </Button>
-        </div>
-      ) : filteredVideos.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="mb-4">
-            No videos found. {searchTerm || categoryFilter !== "all" ? "Try adjusting your filters." : ""}
-          </p>
-          <Button onClick={() => router.push("/admin/videos/add")}>
-            <Plus className="mr-2 h-4 w-4" /> Add Your First Video
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-6">
-          {filteredVideos.map((video) => (
-            <Card key={video.id} className="overflow-hidden">
-              <div className="flex flex-col md:flex-row">
-                <div className="relative w-full md:w-48 h-48">
-                  <Image
-                    src={
-                      video.thumbnailUrl ||
-                      `/placeholder.svg?height=200&width=200&query=${encodeURIComponent(video.playerName || "Football Player")}`
-                    }
-                    alt={video.title || video.playerName || "Video"}
-                    fill
-                    className="object-cover"
-                  />
-                  {video.videoUrl && (
-                    <Link
-                      href={video.videoUrl}
-                      target="_blank"
-                      className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity"
-                    >
-                      <Play className="h-12 w-12 text-white" />
-                    </Link>
-                  )}
-                </div>
-                <CardContent className="flex-1 p-6">
-                  <div className="flex flex-col md:flex-row justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold">{video.playerName || "Unnamed Player"}</h2>
-                      <p className="text-muted-foreground">{video.title || "Personalized Video Message"}</p>
-
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-4">
-                        <div>
-                          <span className="text-sm text-muted-foreground">Price:</span>
-                          <p className="font-semibold">${video.price?.toFixed(2) || "399.99"}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">Category:</span>
-                          <p className="capitalize">{video.category || "N/A"}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">Duration:</span>
-                          <p>{video.duration || "30-60"} seconds</p>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">Status:</span>
-                          <p className={video.available ? "text-green-500" : "text-red-500"}>
-                            {video.available ? "Available" : "Unavailable"}
-                          </p>
-                        </div>
+          ) : filteredVideos.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Video className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No Videos Found</h3>
+                <p className="text-muted-foreground mb-6">
+                  {searchTerm ? "No videos match your search criteria." : "You haven't added any videos yet."}
+                </p>
+                <Button asChild>
+                  <Link href="/admin/videos/add">
+                    <Plus className="mr-2 h-4 w-4" /> Add Your First Video
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredVideos.map((video) => (
+                <Card key={video.id} className="overflow-hidden">
+                  <div className="relative aspect-video">
+                    <Image
+                      src={video.thumbnailUrl || "/placeholder.svg?height=200&width=400&query=video+thumbnail"}
+                      alt={video.title}
+                      fill
+                      className="object-cover"
+                    />
+                    {video.featured && (
+                      <Badge className="absolute top-2 right-2 bg-gold-gradient text-black">Featured</Badge>
+                    )}
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="text-lg font-semibold mb-1">{video.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-3">Player: {video.player}</p>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{video.description}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">Added: {formatDate(video.createdAt)}</span>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/admin/videos/edit/${video.id}`}>
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-500 hover:text-red-600"
+                          onClick={() => handleDeleteVideo(video.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-                    <div className="flex flex-row md:flex-col gap-2 mt-4 md:mt-0">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => router.push(`/admin/videos/edit/${video.id}`)}
-                      >
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => router.push(`/admin/videos/view/${video.id}`)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span className="sr-only">View</span>
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={() => handleDeleteClick(video)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </div>
+        <TabsContent value="requests">
+          {loadingRequests ? (
+            <div className="flex justify-center items-center h-[40vh]">
+              <Loader2 className="h-8 w-8 animate-spin mr-2" />
+              <span>Loading video requests...</span>
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No Video Requests</h3>
+                <p className="text-muted-foreground">
+                  {searchTerm ? "No requests match your search criteria." : "There are no customer video requests yet."}
+                </p>
+              </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete {videoToDelete?.playerName}'s video from the system. This action cannot be
-              undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-500 hover:bg-red-600">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left py-3 px-4">Player</th>
+                    <th className="text-left py-3 px-4">Recipient</th>
+                    <th className="text-left py-3 px-4">Occasion</th>
+                    <th className="text-left py-3 px-4">Requested On</th>
+                    <th className="text-left py-3 px-4">Delivery Date</th>
+                    <th className="text-left py-3 px-4">Status</th>
+                    <th className="text-right py-3 px-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((request) => (
+                    <tr key={request.id} className="border-b border-gray-800 hover:bg-gray-900/50">
+                      <td className="py-3 px-4 font-medium">{request.player}</td>
+                      <td className="py-3 px-4">{request.recipientName}</td>
+                      <td className="py-3 px-4">{request.occasion}</td>
+                      <td className="py-3 px-4">{formatDate(request.createdAt)}</td>
+                      <td className="py-3 px-4">{request.deliveryDate}</td>
+                      <td className="py-3 px-4">
+                        <Badge className={`${getStatusColor(request.status)} flex items-center gap-1`}>
+                          {getStatusIcon(request.status)}
+                          <span>{request.status.charAt(0).toUpperCase() + request.status.slice(1)}</span>
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          {request.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-500 hover:text-green-600"
+                                onClick={() => handleUpdateRequestStatus(request.id, "accepted")}
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-500 hover:text-red-600"
+                                onClick={() => handleUpdateRequestStatus(request.id, "rejected")}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {request.status === "accepted" && (
+                            <Button size="sm" asChild>
+                              <Link href={`/admin/videos/fulfill/${request.id}`}>Fulfill</Link>
+                            </Button>
+                          )}
+                          {request.status === "completed" && (
+                            <Button size="sm" variant="outline" asChild>
+                              <Link href={`/admin/videos/fulfill/${request.id}`}>View</Link>
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href={`/admin/videos/request/${request.id}`}>Details</Link>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

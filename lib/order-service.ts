@@ -67,6 +67,127 @@ export interface VideoOrder extends OrderBase {
 
 export type Order = ProductOrder | VideoOrder
 
+// Generic order interface for the createOrder function
+export interface OrderInput {
+  userId: string
+  items: Array<{
+    id: string
+    name: string
+    price: number
+    quantity: number
+    type?: "product" | "video_request"
+    imageUrl?: string
+  }>
+  status: string
+  paymentStatus: string
+  shippingAddress: {
+    name: string
+    email: string
+    phone?: string
+    line1?: string
+    line2?: string
+    city?: string
+    state?: string
+    postalCode?: string
+    country?: string
+  }
+  total: number
+  shipping?: number
+  tax?: number
+  videoRequest?: {
+    player: string
+    occasion: string
+    recipientName: string
+    message: string
+    deliveryDate: string
+  }
+}
+
+// Generic createOrder function that handles both product and video orders
+export async function createOrder(orderInput: OrderInput): Promise<{ success: boolean; orderId: string; error?: any }> {
+  try {
+    // Determine if this is a product or video order
+    const isVideoOrder = orderInput.items.some((item) => item.type === "video_request") || !!orderInput.videoRequest
+
+    if (isVideoOrder) {
+      // Handle as video order
+      const videoOrderData: Omit<VideoOrder, "id" | "createdAt" | "updatedAt" | "orderType"> = {
+        userId: orderInput.userId,
+        customerInfo: {
+          name: orderInput.shippingAddress.name,
+          email: orderInput.shippingAddress.email,
+          phone: orderInput.shippingAddress.phone,
+          address: {
+            line1: orderInput.shippingAddress.line1,
+            line2: orderInput.shippingAddress.line2,
+            city: orderInput.shippingAddress.city,
+            state: orderInput.shippingAddress.state,
+            postalCode: orderInput.shippingAddress.postalCode,
+            country: orderInput.shippingAddress.country,
+          },
+        },
+        subtotal: orderInput.total - (orderInput.shipping || 0) - (orderInput.tax || 0),
+        shipping: orderInput.shipping || 0,
+        tax: orderInput.tax || 0,
+        total: orderInput.total,
+        paymentMethod: "Credit Card", // Default
+        paymentStatus: orderInput.paymentStatus,
+        orderStatus: orderInput.status,
+        videoRequest: orderInput.videoRequest || {
+          player: "Unknown Player",
+          occasion: "Not specified",
+          recipientName: "Not specified",
+          message: "No message provided",
+          deliveryDate: new Date().toISOString().split("T")[0],
+          status: "pending",
+          price: orderInput.total,
+        },
+      }
+
+      const orderId = await createVideoOrder(videoOrderData)
+      return { success: true, orderId }
+    } else {
+      // Handle as product order
+      const productOrderData: Omit<ProductOrder, "id" | "createdAt" | "updatedAt" | "orderType"> = {
+        userId: orderInput.userId,
+        customerInfo: {
+          name: orderInput.shippingAddress.name,
+          email: orderInput.shippingAddress.email,
+          phone: orderInput.shippingAddress.phone,
+          address: {
+            line1: orderInput.shippingAddress.line1,
+            line2: orderInput.shippingAddress.line2,
+            city: orderInput.shippingAddress.city,
+            state: orderInput.shippingAddress.state,
+            postalCode: orderInput.shippingAddress.postalCode,
+            country: orderInput.shippingAddress.country,
+          },
+        },
+        subtotal: orderInput.total - (orderInput.shipping || 0) - (orderInput.tax || 0),
+        shipping: orderInput.shipping || 0,
+        tax: orderInput.tax || 0,
+        total: orderInput.total,
+        paymentMethod: "Credit Card", // Default
+        paymentStatus: orderInput.paymentStatus,
+        orderStatus: orderInput.status,
+        items: orderInput.items.map((item) => ({
+          productId: item.id,
+          productName: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          imageUrl: item.imageUrl,
+        })),
+      }
+
+      const orderId = await createProductOrder(productOrderData)
+      return { success: true, orderId }
+    }
+  } catch (error) {
+    console.error("Error creating order:", error)
+    return { success: false, orderId: "", error }
+  }
+}
+
 // Create a new product order
 export async function createProductOrder(
   orderData: Omit<ProductOrder, "id" | "createdAt" | "updatedAt" | "orderType">,

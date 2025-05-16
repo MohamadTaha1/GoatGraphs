@@ -17,9 +17,9 @@ import { format } from "date-fns"
 import { CalendarIcon, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/contexts/auth-context"
+import { useAuth } from "@/hooks/use-auth"
 import { AuthRequiredModal } from "@/components/auth-required-modal"
-import { createVideoOrder } from "@/lib/order-service"
+import { createOrder } from "@/lib/order-service"
 
 // Define the form schema
 const formSchema = z.object({
@@ -95,46 +95,40 @@ export default function VideoRequestPage() {
       const price = selectedPlayer ? selectedPlayer.price : 399.99
       const playerName = selectedPlayer ? selectedPlayer.name : values.player
 
-      // Create the video order
-      const orderData = {
+      // Create the order with video request
+      const orderResult = await createOrder({
         userId: user.uid,
-        customerInfo: {
+        items: [
+          {
+            id: `video-${Date.now()}`,
+            name: `Personalized Video from ${playerName}`,
+            price: price,
+            quantity: 1,
+            type: "video_request",
+          },
+        ],
+        status: "pending",
+        paymentStatus: "paid",
+        shippingAddress: {
           name: user.displayName || "Customer",
           email: user.email || "",
-          phone: user.phoneNumber || "",
-          address: {
-            line1: "",
-            city: "",
-            postalCode: "",
-            country: "",
-          },
         },
+        total: price,
         videoRequest: {
           player: playerName,
           occasion: values.occasion,
           recipientName: values.recipientName,
           message: values.message,
           deliveryDate: format(values.deliveryDate, "PPP"),
-          status: "pending",
-          price: price,
         },
-        subtotal: price,
-        shipping: 0,
-        tax: 0,
-        total: price,
-        paymentMethod: "Credit Card",
-        paymentStatus: "paid",
-        orderStatus: "pending",
-      }
+      })
 
-      const orderId = await createVideoOrder(orderData)
-
-      if (orderId) {
+      if (orderResult.success) {
         toast({
           title: "Video Request Submitted",
           description: "Your video request has been submitted successfully!",
         })
-        router.push(`/customer/checkout/success?orderId=${orderId}&type=video`)
+        router.push(`/customer/checkout/success?orderId=${orderResult.orderId}&type=video`)
       } else {
         throw new Error("Failed to create order")
       }
