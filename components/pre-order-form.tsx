@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
 import { useCart } from "@/components/cart-provider"
 import { useAuth } from "@/hooks/use-auth"
-import { Loader2, Check } from "lucide-react"
+import { Loader2, Check, Video, Award } from "lucide-react"
 
 // Form schema
 const preOrderSchema = z.object({
@@ -22,7 +22,7 @@ const preOrderSchema = z.object({
     .string()
     .min(1, "Personalization message is required")
     .max(50, "Personalization must be less than 50 characters"),
-  giftWrapping: z.boolean().default(false),
+  vipFrame: z.boolean().default(false),
   specialInstructions: z.string().max(200, "Special instructions must be less than 200 characters").optional(),
 })
 
@@ -69,7 +69,7 @@ export function PreOrderForm() {
     resolver: zodResolver(preOrderSchema),
     defaultValues: {
       personalization: "",
-      giftWrapping: false,
+      vipFrame: false,
       specialInstructions: "",
     },
   })
@@ -77,7 +77,7 @@ export function PreOrderForm() {
   // Calculate price based on options
   const calculatePrice = () => {
     let price = selectedJersey.price
-    if (form.watch("giftWrapping")) price += 19.99
+    if (form.watch("vipFrame")) price += 150.0
     return price
   }
 
@@ -107,7 +107,7 @@ export function PreOrderForm() {
           jersey: selectedJersey.title,
           player: selectedJersey.player,
           personalization: data.personalization,
-          giftWrapping: data.giftWrapping,
+          vipFrame: data.vipFrame,
           specialInstructions: data.specialInstructions,
           price: finalPrice,
         },
@@ -141,6 +141,18 @@ export function PreOrderForm() {
 
   return (
     <div className="space-y-8">
+      {/* Pre-order Benefits Banner */}
+      <div className="bg-gold/10 border border-gold/30 rounded-lg p-4 mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <Video className="h-5 w-5 text-gold" />
+          <h3 className="text-lg font-display font-bold text-gold">Exclusive Video Documentation</h3>
+        </div>
+        <p className="text-offwhite/80 ml-8">
+          All pre-orders include a personalized video of the player signing your item, providing undeniable proof of
+          authenticity and a unique keepsake.
+        </p>
+      </div>
+
       {/* Jersey Selection */}
       <div>
         <h3 className="text-xl font-display font-bold text-gold mb-4">Select a Jersey</h3>
@@ -204,11 +216,11 @@ export function PreOrderForm() {
               )}
             />
 
-            {/* Gift Wrapping Option */}
+            {/* VIP Frame Option */}
             <div className="mt-6">
               <FormField
                 control={form.control}
-                name="giftWrapping"
+                name="vipFrame"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-gold/30 p-4">
                     <FormControl>
@@ -219,9 +231,12 @@ export function PreOrderForm() {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel className="text-offwhite">Gift Wrapping (+$19.99)</FormLabel>
+                      <div className="flex items-center gap-2">
+                        <FormLabel className="text-offwhite">VIP Frame (+$150.00)</FormLabel>
+                        <Award className="h-4 w-4 text-gold" />
+                      </div>
                       <FormDescription className="text-offwhite/50">
-                        Luxury gift wrapping with personalized card
+                        Premium museum-quality frame with UV protection and certificate display
                       </FormDescription>
                     </div>
                   </FormItem>
@@ -267,10 +282,10 @@ export function PreOrderForm() {
                 <span className="text-offwhite/70">Base Price:</span>
                 <span className="text-offwhite">${selectedJersey.price.toFixed(2)}</span>
               </div>
-              {form.watch("giftWrapping") && (
+              {form.watch("vipFrame") && (
                 <div className="flex justify-between">
-                  <span className="text-offwhite/70">Gift Wrapping:</span>
-                  <span className="text-offwhite">$19.99</span>
+                  <span className="text-offwhite/70">VIP Frame:</span>
+                  <span className="text-offwhite">$150.00</span>
                 </div>
               )}
               <div className="border-t border-gold/20 pt-2 mt-2 flex justify-between font-bold">
@@ -282,6 +297,7 @@ export function PreOrderForm() {
             <div className="text-sm text-offwhite/50 mb-6">
               <p>• Pre-orders typically take 3-4 weeks for delivery</p>
               <p>• Each jersey comes with a certificate of authenticity</p>
+              <p>• Includes video of the player signing your item</p>
               <p>• Free shipping on all pre-orders</p>
             </div>
 

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
-import { ArrowRight, Award, CheckCircle, ShoppingBag, Star } from "lucide-react"
+import { ArrowRight, Award, CheckCircle, ShoppingBag, Star, Video, Pencil } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { CategoryShowcase } from "@/components/category-showcase"
 
@@ -297,6 +297,75 @@ export default function CustomerHome() {
         </div>
       )}
 
+      {/* Our Offerings Section */}
+      <div className="container mb-16">
+        <h2 className="text-3xl font-display font-bold text-white text-center mb-8">Our Exclusive Offerings</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* In-Stock Products */}
+          <Card className="bg-charcoal border-gold/20 hover:border-gold/40 transition-all overflow-hidden">
+            <div className="relative h-48 bg-gradient-to-b from-gold/20 to-transparent">
+              <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                <ShoppingBag className="h-16 w-16 text-gold/60" />
+              </div>
+            </div>
+            <CardContent className="p-6">
+              <h3 className="text-xl font-display font-bold text-gold mb-2">In-Stock Products</h3>
+              <p className="text-offwhite/70 mb-4">
+                Browse our collection of authenticated memorabilia that's ready to ship immediately. Each item comes
+                with a certificate of authenticity.
+              </p>
+              <Button asChild variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
+                <Link href="/customer/shop">
+                  Shop Now <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Pre-Order Items */}
+          <Card className="bg-charcoal border-gold/20 hover:border-gold/40 transition-all overflow-hidden">
+            <div className="relative h-48 bg-gradient-to-b from-gold/20 to-transparent">
+              <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                <Pencil className="h-16 w-16 text-gold/60" />
+              </div>
+            </div>
+            <CardContent className="p-6">
+              <h3 className="text-xl font-display font-bold text-gold mb-2">Custom Pre-Orders</h3>
+              <p className="text-offwhite/70 mb-4">
+                Create personalized signed memorabilia with custom messages. Each pre-order includes a video of the
+                player signing your item.
+              </p>
+              <Button asChild variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
+                <Link href="/customer/shop?tab=pre-order">
+                  Customize Now <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Personalized Videos */}
+          <Card className="bg-charcoal border-gold/20 hover:border-gold/40 transition-all overflow-hidden">
+            <div className="relative h-48 bg-gradient-to-b from-gold/20 to-transparent">
+              <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                <Video className="h-16 w-16 text-gold/60" />
+              </div>
+            </div>
+            <CardContent className="p-6">
+              <h3 className="text-xl font-display font-bold text-gold mb-2">Personalized Videos</h3>
+              <p className="text-offwhite/70 mb-4">
+                Request custom video messages from your favorite players for birthdays, celebrations, or special
+                occasions.
+              </p>
+              <Button asChild variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
+                <Link href="/customer/videos">
+                  Request Video <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* Featured Products */}
       {featuredProducts.length > 0 && (
         <div className="container mb-16">
@@ -394,10 +463,10 @@ export default function CustomerHome() {
           </div>
           <div className="text-center">
             <div className="bg-gold/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="h-8 w-8 text-gold" />
+              <Video className="h-8 w-8 text-gold" />
             </div>
-            <h3 className="text-xl font-display font-medium text-white mb-2">Secure Shopping</h3>
-            <p className="text-white/70">Encrypted transactions and secure packaging</p>
+            <h3 className="text-xl font-display font-medium text-white mb-2">Video Documentation</h3>
+            <p className="text-white/70">Pre-orders include videos of players signing your items</p>
           </div>
         </div>
       </div>

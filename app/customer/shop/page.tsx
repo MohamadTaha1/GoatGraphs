@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,6 +21,7 @@ import { PreOrderForm } from "@/components/pre-order-form"
 
 export default function ShopPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { products, loading, error } = useProducts()
   const { addItem } = useCart()
   const { toast } = useToast()
@@ -35,6 +36,14 @@ export default function ShopPage() {
   const [sortOption, setSortOption] = useState("featured")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("in-stock")
+
+  // Set initial tab based on URL parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab")
+    if (tabParam === "pre-order") {
+      setActiveTab("pre-order")
+    }
+  }, [searchParams])
 
   // Handle type filter changes
   const handleTypeChange = (type) => {
@@ -135,7 +144,7 @@ export default function ShopPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="in-stock" className="w-full mb-8" onValueChange={setActiveTab}>
+      <Tabs defaultValue={activeTab} value={activeTab} className="w-full mb-8" onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="in-stock" className="flex items-center gap-2">
             <ShoppingBag className="h-4 w-4" />
@@ -370,8 +379,8 @@ export default function ShopPage() {
           <div className="bg-charcoal border border-gold/30 rounded-lg p-6">
             <h2 className="text-2xl font-display font-bold mb-4 text-gold">Custom Pre-Order</h2>
             <p className="text-offwhite/80 mb-6">
-              Create your own custom signed jersey by selecting the team, player, and personalization options below.
-              Pre-orders typically take 4-6 weeks for delivery as we arrange for the requested signatures.
+              Create your own custom signed jersey by selecting the jersey and personalization options below. Pre-orders
+              typically take 3-4 weeks for delivery as we arrange for the requested signatures.
             </p>
 
             <PreOrderForm />
