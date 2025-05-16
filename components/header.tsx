@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   ShoppingCart,
   Search,
@@ -18,7 +17,6 @@ import {
   Users,
   Package,
   LayoutDashboard,
-  Gavel,
   Film,
   Shield,
   Home,
@@ -32,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/auth-context"
 import { useCart } from "./cart-provider"
+import { SearchBar } from "./search-bar"
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
@@ -58,7 +57,7 @@ export function Header() {
 
   // Add this new useEffect after the existing useEffect hooks
   useEffect(() => {
-    if (isMobileMenuOpen) {
+    if (isMobileMenuOpen || isSearchOpen) {
       // Disable scrolling on body when menu is open
       document.body.style.overflow = "hidden"
     } else {
@@ -70,7 +69,7 @@ export function Header() {
     return () => {
       document.body.style.overflow = ""
     }
-  }, [isMobileMenuOpen])
+  }, [isMobileMenuOpen, isSearchOpen])
 
   // Determine if the current path is active
   const isActive = (path: string) => {
@@ -147,16 +146,6 @@ export function Header() {
                     }`}
                   >
                     Customers
-                  </Link>
-                  <Link
-                    href="/admin/auctions"
-                    className={`px-3 py-2 rounded-md text-sm font-medium ${
-                      isActive("/admin/auctions")
-                        ? "bg-gold/10 text-gold"
-                        : "text-gold/70 hover:text-gold hover:bg-gold/10"
-                    }`}
-                  >
-                    Auctions
                   </Link>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -253,16 +242,6 @@ export function Header() {
                     }`}
                   >
                     Orders
-                  </Link>
-                  <Link
-                    href={`${basePath}/auction`}
-                    className={`px-3 py-2 rounded-md text-sm font-medium ${
-                      isActive(`${basePath}/auction`)
-                        ? "bg-gold/10 text-gold"
-                        : "text-gold/70 hover:text-gold hover:bg-gold/10"
-                    }`}
-                  >
-                    Auction
                   </Link>
                   <Link
                     href={`${basePath}/about`}
@@ -367,15 +346,6 @@ export function Header() {
                           >
                             <ShoppingBag className="mr-2 h-4 w-4" />
                             Orders
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            href="/customer/auction"
-                            className="flex items-center cursor-pointer text-gold/70 hover:text-gold hover:bg-gold/10"
-                          >
-                            <Gavel className="mr-2 h-4 w-4" />
-                            Auctions
                           </Link>
                         </DropdownMenuItem>
                       </>
@@ -494,16 +464,6 @@ export function Header() {
                     </div>
                   </Link>
                   <Link
-                    href="/admin/auctions"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <div className="flex items-center">
-                      <Gavel className="mr-2 h-5 w-5" />
-                      Auctions
-                    </div>
-                  </Link>
-                  <Link
                     href="/admin/banners"
                     className="block px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -598,16 +558,6 @@ export function Header() {
                     </div>
                   </Link>
                   <Link
-                    href={`${basePath}/auction`}
-                    className="block px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <div className="flex items-center">
-                      <Gavel className="mr-2 h-5 w-5" />
-                      Auction
-                    </div>
-                  </Link>
-                  <Link
                     href={`${basePath}/about`}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -693,32 +643,8 @@ export function Header() {
 
       {/* Search overlay */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-start pt-20">
-          <div className="container mx-auto px-4">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-display font-bold text-gold">Search Products</h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gold/70 hover:text-gold hover:bg-gold/10"
-                onClick={() => setIsSearchOpen(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="relative">
-              <Input
-                type="text"
-                placeholder="Search for products..."
-                className="bg-black border-gold/30 text-gold placeholder:text-gold/50 py-6 text-lg"
-                autoFocus
-              />
-              <Button className="absolute right-0 top-0 h-full bg-gold hover:bg-gold/80 text-black" size="icon">
-                <Search className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="mt-4 text-sm text-gold/70">Press ESC to close or Enter to search</div>
-          </div>
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-start pt-20 overflow-y-auto">
+          <SearchBar onClose={() => setIsSearchOpen(false)} />
         </div>
       )}
 

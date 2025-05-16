@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -18,6 +17,7 @@ import { formatPrice } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/hooks/use-auth"
 import { PreOrderForm } from "@/components/pre-order-form"
+import { OptimizedImage } from "@/components/optimized-image"
 
 export default function ShopPage() {
   const router = useRouter()
@@ -42,6 +42,12 @@ export default function ShopPage() {
     const tabParam = searchParams.get("tab")
     if (tabParam === "pre-order") {
       setActiveTab("pre-order")
+    }
+
+    // Set initial search term from URL if present
+    const searchParam = searchParams.get("search")
+    if (searchParam) {
+      setSearchTerm(searchParam)
     }
   }, [searchParams])
 
@@ -335,11 +341,15 @@ export default function ShopPage() {
                   className="overflow-hidden border-gold/30 bg-charcoal hover:border-gold/50 transition-all"
                 >
                   <div className="relative h-64 bg-jetblack">
-                    <Image
+                    <OptimizedImage
                       src={product.imageUrl || "/placeholder.svg?height=256&width=256"}
                       alt={product.title || "Product"}
                       fill
-                      className="object-cover"
+                      sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      className="w-full h-full"
+                      objectFit="contain"
+                      priority={product.featured}
+                      quality={85}
                     />
                     {product.featured && (
                       <div className="absolute top-2 right-2 bg-gold text-jetblack text-xs font-bold px-2 py-1 rounded">

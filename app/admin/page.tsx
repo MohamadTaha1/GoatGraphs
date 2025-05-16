@@ -31,115 +31,32 @@ import {
   Eye,
   ShoppingCart,
   CreditCard,
+  Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-
-// Mock data for sales
-const salesData = [
-  { name: "Jan", total: 1200 },
-  { name: "Feb", total: 1800 },
-  { name: "Mar", total: 2200 },
-  { name: "Apr", total: 2600 },
-  { name: "May", total: 3200 },
-  { name: "Jun", total: 3800 },
-  { name: "Jul", total: 4200 },
-]
-
-// Mock data for top products
-const topProductsData = [
-  { name: "Messi Signed Jersey", value: 35 },
-  { name: "Ronaldo Signed Ball", value: 25 },
-  { name: "Salah Signed Photo", value: 20 },
-  { name: "Neymar Signed Boots", value: 15 },
-  { name: "Mbappé Signed Jersey", value: 5 },
-]
-
-// Mock data for order status
-const orderStatusData = [
-  { name: "Pending", value: 10 },
-  { name: "Processing", value: 15 },
-  { name: "Shipped", value: 20 },
-  { name: "Delivered", value: 45 },
-  { name: "Cancelled", value: 10 },
-]
-
-// Mock data for recent orders
-const recentOrders = [
-  {
-    id: "ORD-7392",
-    customer: "Ahmed Al Mansour",
-    date: "2023-04-18",
-    amount: 1299.99,
-    status: "delivered",
-    items: 1,
-    avatar: "/abstract-am.png",
-  },
-  {
-    id: "ORD-7391",
-    customer: "Sara Khan",
-    date: "2023-04-17",
-    amount: 2499.98,
-    status: "shipped",
-    items: 2,
-    avatar: "/abstract-geometric-sk.png",
-  },
-  {
-    id: "ORD-7390",
-    customer: "Mohammed Hassan",
-    date: "2023-04-17",
-    amount: 999.99,
-    status: "processing",
-    items: 1,
-    avatar: "/stylized-mh.png",
-  },
-  {
-    id: "ORD-7389",
-    customer: "Fatima Al Zahra",
-    date: "2023-04-16",
-    amount: 1199.99,
-    status: "pending",
-    items: 1,
-    avatar: "/abstract-fz.png",
-  },
-]
+import { useDashboardStats } from "@/hooks/use-dashboard-stats"
+import { formatPrice } from "@/lib/utils"
+import { useState } from "react"
 
 // Colors for pie charts
 const COLORS = ["#FFD700", "#FFA500", "#9370DB", "#3CB371", "#FF6347"]
 
-// Mock data for traffic sources
-const trafficSourcesData = [
-  { name: "Direct", value: 40 },
-  { name: "Organic Search", value: 30 },
-  { name: "Social Media", value: 15 },
-  { name: "Referral", value: 10 },
-  { name: "Email", value: 5 },
-]
-
-// Mock data for visitor stats
-const visitorStatsData = [
-  { name: "Mon", visitors: 820, pageViews: 1400 },
-  { name: "Tue", visitors: 932, pageViews: 1700 },
-  { name: "Wed", visitors: 901, pageViews: 1500 },
-  { name: "Thu", visitors: 934, pageViews: 1800 },
-  { name: "Fri", visitors: 1290, pageViews: 2400 },
-  { name: "Sat", visitors: 1330, pageViews: 2200 },
-  { name: "Sun", visitors: 1320, pageViews: 2000 },
-]
-
-// Mock data for sales by category
-const salesByCategoryData = [
-  { name: "Jerseys", value: 45 },
-  { name: "Footballs", value: 20 },
-  { name: "Boots", value: 15 },
-  { name: "Photos", value: 12 },
-  { name: "Other", value: 8 },
-]
-
 export default function AdminDashboard() {
   const { user } = useAuth()
+  const stats = useDashboardStats()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    // Simulate refresh by reloading the page after a short delay
+    setTimeout(() => {
+      window.location.reload()
+    }, 500)
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -158,6 +75,45 @@ export default function AdminDashboard() {
     }
   }
 
+  if (stats.loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh]">
+        <Loader2 className="h-12 w-12 animate-spin text-gold mb-4" />
+        <h2 className="text-xl font-display font-bold text-gold">Loading Dashboard Data...</h2>
+        <p className="text-offwhite/70 mt-2">Fetching the latest statistics from the database</p>
+      </div>
+    )
+  }
+
+  if (stats.error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] bg-red-900/10 rounded-lg border border-red-900/30 p-8">
+        <div className="text-red-500 mb-4 text-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-12 w-12 mx-auto mb-2"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <h2 className="text-xl font-display font-bold">Error Loading Dashboard</h2>
+        </div>
+        <p className="text-offwhite/70 mb-6 text-center">{stats.error}</p>
+        <Button className="bg-gold-soft hover:bg-gold-deep text-jetblack" onClick={handleRefresh}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Retry
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -173,13 +129,28 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="border-gold/30 text-gold hover:bg-gold/10">
-            <Eye className="mr-2 h-4 w-4" />
-            View Store
+          <Button variant="outline" className="border-gold/30 text-gold hover:bg-gold/10" asChild>
+            <a href="/customer" target="_blank" rel="noopener noreferrer">
+              <Eye className="mr-2 h-4 w-4" />
+              View Store
+            </a>
           </Button>
-          <Button className="bg-gold-soft hover:bg-gold-deep text-jetblack">
-            <Activity className="mr-2 h-4 w-4" />
-            Generate Report
+          <Button
+            className="bg-gold-soft hover:bg-gold-deep text-jetblack"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <Activity className="mr-2 h-4 w-4" />
+                Refresh Data
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -194,7 +165,7 @@ export default function AdminDashboard() {
             <CardDescription className="text-offwhite/50">All time sales revenue</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gold">$45,231.89</div>
+            <div className="text-3xl font-bold text-gold">${formatPrice(stats.totalRevenue)}</div>
             <div className="mt-4 flex items-center text-xs text-offwhite/70">
               <span className="flex items-center text-green-500 mr-1">
                 <ArrowUpRight className="h-3 w-3 mr-1" /> 20.1%
@@ -213,7 +184,7 @@ export default function AdminDashboard() {
             <CardDescription className="text-offwhite/50">Customers this month</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gold">+12</div>
+            <div className="text-3xl font-bold text-gold">+{stats.newCustomers}</div>
             <div className="mt-4 flex items-center text-xs text-offwhite/70">
               <span className="flex items-center text-green-500 mr-1">
                 <ArrowUpRight className="h-3 w-3 mr-1" /> 10.5%
@@ -232,7 +203,7 @@ export default function AdminDashboard() {
             <CardDescription className="text-offwhite/50">Orders this month</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gold">+28</div>
+            <div className="text-3xl font-bold text-gold">+{stats.totalOrders}</div>
             <div className="mt-4 flex items-center text-xs text-offwhite/70">
               <span className="flex items-center text-green-500 mr-1">
                 <ArrowUpRight className="h-3 w-3 mr-1" /> 15.3%
@@ -251,7 +222,7 @@ export default function AdminDashboard() {
             <CardDescription className="text-offwhite/50">Total product value</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gold">$98,532.00</div>
+            <div className="text-3xl font-bold text-gold">${formatPrice(stats.inventoryValue)}</div>
             <div className="mt-4 flex items-center text-xs text-offwhite/70">
               <span className="flex items-center text-red-500 mr-1">
                 <ArrowDownRight className="h-3 w-3 mr-1" /> 5.2%
@@ -294,7 +265,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart data={stats.salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.8} />
@@ -307,6 +278,7 @@ export default function AdminDashboard() {
                     <Tooltip
                       contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
                       labelStyle={{ color: "#FFD700" }}
+                      formatter={(value) => [`$${formatPrice(value)}`, "Revenue"]}
                     />
                     <Area type="monotone" dataKey="total" stroke="#D4AF37" fillOpacity={1} fill="url(#colorTotal)" />
                   </AreaChart>
@@ -323,7 +295,7 @@ export default function AdminDashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={topProductsData}
+                      data={stats.topProducts}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -332,7 +304,7 @@ export default function AdminDashboard() {
                       dataKey="value"
                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
-                      {topProductsData.map((entry, index) => (
+                      {stats.topProducts.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -357,7 +329,7 @@ export default function AdminDashboard() {
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
-                      data={orderStatusData}
+                      data={stats.orderStatusData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -366,7 +338,7 @@ export default function AdminDashboard() {
                       dataKey="value"
                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
-                      {orderStatusData.map((entry, index) => (
+                      {stats.orderStatusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -387,7 +359,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentOrders.map((order) => (
+                  {stats.recentOrders.map((order) => (
                     <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-charcoal/50">
                       <div className="flex items-center">
                         <Avatar className="h-10 w-10 mr-3 border border-gold/30">
@@ -418,15 +390,15 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-gold">${order.amount.toFixed(2)}</p>
-                        <Button variant="ghost" size="sm" className="text-xs text-offwhite/70 hover:text-gold">
-                          View
+                        <p className="font-medium text-gold">${formatPrice(order.amount)}</p>
+                        <Button variant="ghost" size="sm" className="text-xs text-offwhite/70 hover:text-gold" asChild>
+                          <a href={`/admin/orders/${order.id}`}>View</a>
                         </Button>
                       </div>
                     </div>
                   ))}
-                  <Button variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
-                    View All Orders
+                  <Button variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10" asChild>
+                    <a href="/admin/orders">View All Orders</a>
                   </Button>
                 </div>
               </CardContent>
@@ -443,13 +415,14 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <LineChart data={stats.salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="name" stroke="#999" />
                     <YAxis stroke="#999" />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
                       labelStyle={{ color: "#FFD700" }}
+                      formatter={(value) => [`$${formatPrice(value)}`, "Revenue"]}
                     />
                     <Legend />
                     <Line type="monotone" dataKey="total" stroke="#FFD700" activeDot={{ r: 8 }} />
@@ -467,7 +440,7 @@ export default function AdminDashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={salesByCategoryData}
+                      data={stats.topProducts}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -476,7 +449,7 @@ export default function AdminDashboard() {
                       dataKey="value"
                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
-                      {salesByCategoryData.map((entry, index) => (
+                      {stats.topProducts.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -508,7 +481,9 @@ export default function AdminDashboard() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-offwhite/70">Avg. Order Value</span>
-                    <span className="text-sm font-medium text-offwhite">$245.80</span>
+                    <span className="text-sm font-medium text-offwhite">
+                      ${formatPrice(stats.totalRevenue / Math.max(stats.totalOrders, 1))}
+                    </span>
                   </div>
                   <Progress value={68} className="h-2" indicatorClassName="bg-gold" />
                 </div>
@@ -582,7 +557,7 @@ export default function AdminDashboard() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-offwhite">Purchases Completed</span>
-                        <span className="text-sm font-medium text-offwhite">452</span>
+                        <span className="text-sm font-medium text-offwhite">{stats.totalOrders}</span>
                       </div>
                       <Progress value={3.6} className="h-2" indicatorClassName="bg-gold" />
                     </div>
@@ -602,7 +577,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={visitorStatsData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart data={stats.salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.8} />
@@ -623,17 +598,11 @@ export default function AdminDashboard() {
                     <Legend />
                     <Area
                       type="monotone"
-                      dataKey="visitors"
+                      dataKey="total"
+                      name="Revenue"
                       stroke="#D4AF37"
                       fillOpacity={1}
                       fill="url(#colorVisitors)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="pageViews"
-                      stroke="#82ca9d"
-                      fillOpacity={1}
-                      fill="url(#colorPageViews)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -649,7 +618,7 @@ export default function AdminDashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={trafficSourcesData}
+                      data={stats.topProducts}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -658,7 +627,7 @@ export default function AdminDashboard() {
                       dataKey="value"
                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
-                      {trafficSourcesData.map((entry, index) => (
+                      {stats.topProducts.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>

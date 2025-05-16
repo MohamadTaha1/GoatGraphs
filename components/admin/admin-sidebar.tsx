@@ -14,7 +14,6 @@ import {
   Layers,
   ImageIcon,
   MessageSquare,
-  Gavel,
   FileText,
   Database,
   UserCog,
@@ -212,13 +211,6 @@ export function AdminSidebar({ className, isOpen, onClose }: SidebarProps) {
                   label="Promo Codes"
                   href="/admin/promo-codes"
                   isActive={isActive("/admin/promo-codes")}
-                  isCollapsed={isCollapsed}
-                />
-                <SidebarItem
-                  icon={<Gavel className={cn("h-5 w-5", isCollapsed ? "" : "mr-2")} />}
-                  label="Auctions"
-                  href="/admin/auctions"
-                  isActive={isActive("/admin/auctions")}
                   isCollapsed={isCollapsed}
                 />
               </div>
