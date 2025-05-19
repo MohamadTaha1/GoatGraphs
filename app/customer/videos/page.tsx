@@ -1,12 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Video, MessageSquare, Plus, Clock, CheckCircle, X, Play } from "lucide-react"
+import { Loader2, Video, MessageSquare, Plus, Clock, CheckCircle, X, Play, Info, ArrowDown } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useVideos, useUserVideoRequests } from "@/hooks/use-videos"
@@ -18,6 +20,16 @@ export default function CustomerVideosPage() {
   const { videos, loading: loadingVideos } = useVideos()
   const { requests, loading: loadingRequests } = useUserVideoRequests(user?.uid || null)
   const [activeTab, setActiveTab] = useState("gallery")
+
+  // Refs for scrolling
+  const howItWorksRef = useRef<HTMLDivElement>(null)
+  const requestVideoRef = useRef<HTMLDivElement>(null)
+
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
+    if (ref.current) {
+      ref.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -86,11 +98,14 @@ export default function CustomerVideosPage() {
     <div className="container py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
         <h1 className="text-3xl font-bold mb-4 md:mb-0">Player Videos</h1>
-        <Button asChild>
-          <Link href="/customer/videos/request">
-            <Plus className="mr-2 h-4 w-4" /> Request Personalized Video
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline" onClick={() => scrollToSection(howItWorksRef)} className="flex items-center">
+            <Info className="mr-2 h-4 w-4" /> How It Works
+          </Button>
+          <Button onClick={() => scrollToSection(requestVideoRef)}>
+            <Plus className="mr-2 h-4 w-4" /> Request Video
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="gallery" className="mb-8">
@@ -120,10 +135,8 @@ export default function CustomerVideosPage() {
                 <Video className="h-16 w-16 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">No Videos Available</h3>
                 <p className="text-muted-foreground mb-6">There are no videos available in our gallery yet.</p>
-                <Button asChild>
-                  <Link href="/customer/videos/request">
-                    <Plus className="mr-2 h-4 w-4" /> Request a Personalized Video
-                  </Link>
+                <Button onClick={() => scrollToSection(requestVideoRef)}>
+                  <Plus className="mr-2 h-4 w-4" /> Request a Personalized Video
                 </Button>
               </CardContent>
             </Card>
@@ -154,6 +167,18 @@ export default function CustomerVideosPage() {
                     <h3 className="text-lg font-semibold mb-1">{video.title}</h3>
                     <p className="text-sm text-muted-foreground mb-3">Player: {video.player}</p>
                     <p className="text-sm text-muted-foreground line-clamp-2">{video.description}</p>
+                    <div className="mt-4">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          router.push(`/customer/videos/${video.id}`)
+                        }}
+                      >
+                        Watch Video
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -184,10 +209,8 @@ export default function CustomerVideosPage() {
                 <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">No Video Requests</h3>
                 <p className="text-muted-foreground mb-6">You haven't requested any personalized videos yet.</p>
-                <Button asChild>
-                  <Link href="/customer/videos/request">
-                    <Plus className="mr-2 h-4 w-4" /> Request Your First Video
-                  </Link>
+                <Button onClick={() => scrollToSection(requestVideoRef)}>
+                  <Plus className="mr-2 h-4 w-4" /> Request Your First Video
                 </Button>
               </CardContent>
             </Card>
@@ -245,6 +268,80 @@ export default function CustomerVideosPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* How It Works Section */}
+      <div ref={howItWorksRef} className="mt-16 mb-12 scroll-mt-24">
+        <h2 className="text-3xl font-bold mb-8 flex items-center">
+          <Info className="mr-3 h-6 w-6" /> How It Works
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
+                <span className="text-xl font-bold">1</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Request</h3>
+              <p className="text-muted-foreground">
+                Fill out our simple form with details about who the video is for, the occasion, and your personalized
+                message.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
+                <span className="text-xl font-bold">2</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Production</h3>
+              <p className="text-muted-foreground">
+                Our team works with the player to record your personalized video message based on your request.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
+                <span className="text-xl font-bold">3</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Delivery</h3>
+              <p className="text-muted-foreground">
+                Once completed, you'll receive a notification. Your video will be available in your account to watch,
+                download, and share.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex justify-center mt-8">
+          <Button onClick={() => scrollToSection(requestVideoRef)} className="flex items-center">
+            <ArrowDown className="mr-2 h-4 w-4" /> Request Your Video Now
+          </Button>
+        </div>
+      </div>
+
+      {/* Request a Video Section */}
+      <div ref={requestVideoRef} className="mt-16 scroll-mt-24">
+        <Card className="border-2 border-primary/20">
+          <CardHeader>
+            <CardTitle className="text-2xl flex items-center">
+              <Plus className="mr-3 h-5 w-5" /> Request a Personalized Video
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-6">
+              Ready to get a personalized video message from your favorite player? Click below to start your request.
+            </p>
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href="/customer/videos/request">
+                <Plus className="mr-2 h-4 w-4" /> Start Your Video Request
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
