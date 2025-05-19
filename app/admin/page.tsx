@@ -33,6 +33,7 @@ import {
   CreditCard,
   Loader2,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -59,7 +60,7 @@ export default function AdminDashboard() {
   }
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "pending":
         return "bg-blue-500/20 text-blue-500"
       case "processing":
@@ -89,20 +90,7 @@ export default function AdminDashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] bg-red-900/10 rounded-lg border border-red-900/30 p-8">
         <div className="text-red-500 mb-4 text-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-12 w-12 mx-auto mb-2"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
+          <AlertTriangle className="h-12 w-12 mx-auto mb-2" />
           <h2 className="text-xl font-display font-bold">Error Loading Dashboard</h2>
         </div>
         <p className="text-offwhite/70 mb-6 text-center">{stats.error}</p>
@@ -289,32 +277,40 @@ export default function AdminDashboard() {
             <Card className="border-gold/30 bg-charcoal shadow-lg">
               <CardHeader className="pb-2">
                 <CardTitle className="text-gold font-display text-lg">Top Products</CardTitle>
-                <CardDescription className="text-offwhite/70">Best selling items</CardDescription>
+                <CardDescription className="text-offwhite/70">Best selling categories</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={stats.topProducts}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    >
-                      {stats.topProducts.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
-                      labelStyle={{ color: "#FFD700" }}
-                    />
-                    <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  </PieChart>
-                </ResponsiveContainer>
+                {stats.topProducts.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={stats.topProducts}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      >
+                        {stats.topProducts.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
+                        labelStyle={{ color: "#FFD700" }}
+                      />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-center">
+                    <Package className="h-12 w-12 text-gold/30 mb-2" />
+                    <p className="text-offwhite/50">No product data available</p>
+                    <p className="text-xs text-offwhite/30 mt-1">Complete some sales to see product statistics</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -326,29 +322,37 @@ export default function AdminDashboard() {
                 <CardDescription className="text-offwhite/70">Current order distribution</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={stats.orderStatusData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    >
-                      {stats.orderStatusData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
-                      labelStyle={{ color: "#FFD700" }}
-                    />
-                    <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  </PieChart>
-                </ResponsiveContainer>
+                {stats.orderStatusData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={stats.orderStatusData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      >
+                        {stats.orderStatusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
+                        labelStyle={{ color: "#FFD700" }}
+                      />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[250px] text-center">
+                    <ShoppingBag className="h-12 w-12 text-gold/30 mb-2" />
+                    <p className="text-offwhite/50">No order status data available</p>
+                    <p className="text-xs text-offwhite/30 mt-1">Process some orders to see status distribution</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -359,44 +363,57 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {stats.recentOrders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-charcoal/50">
-                      <div className="flex items-center">
-                        <Avatar className="h-10 w-10 mr-3 border border-gold/30">
-                          <AvatarImage src={order.avatar || "/placeholder.svg"} alt={order.customer} />
-                          <AvatarFallback className="bg-gold/10 text-gold">
-                            {order.customer
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center">
-                            <p className="font-medium text-offwhite">{order.customer}</p>
-                            <Badge className={`ml-2 ${getStatusColor(order.status)}`}>
-                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center text-xs text-offwhite/50">
-                            <span className="mr-2">{order.id}</span>
-                            <span>•</span>
-                            <span className="mx-2">{new Date(order.date).toLocaleDateString()}</span>
-                            <span>•</span>
-                            <span className="ml-2">
-                              {order.items} {order.items === 1 ? "item" : "items"}
-                            </span>
+                  {stats.recentOrders.length > 0 ? (
+                    stats.recentOrders.map((order) => (
+                      <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-charcoal/50">
+                        <div className="flex items-center">
+                          <Avatar className="h-10 w-10 mr-3 border border-gold/30">
+                            <AvatarImage src={order.avatar || "/placeholder.svg"} alt={order.customer} />
+                            <AvatarFallback className="bg-gold/10 text-gold">
+                              {order.customer
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="flex items-center">
+                              <p className="font-medium text-offwhite">{order.customer}</p>
+                              <Badge className={`ml-2 ${getStatusColor(order.status)}`}>
+                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center text-xs text-offwhite/50">
+                              <span className="mr-2">{order.id}</span>
+                              <span>•</span>
+                              <span className="mx-2">{new Date(order.date).toLocaleDateString()}</span>
+                              <span>•</span>
+                              <span className="ml-2">
+                                {order.items} {order.items === 1 ? "item" : "items"}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-right">
+                          <p className="font-medium text-gold">${formatPrice(order.amount)}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-offwhite/70 hover:text-gold"
+                            asChild
+                          >
+                            <a href={`/admin/orders/${order.id}`}>View</a>
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-gold">${formatPrice(order.amount)}</p>
-                        <Button variant="ghost" size="sm" className="text-xs text-offwhite/70 hover:text-gold" asChild>
-                          <a href={`/admin/orders/${order.id}`}>View</a>
-                        </Button>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <ShoppingBag className="h-12 w-12 text-gold/30 mb-2" />
+                      <p className="text-offwhite/50">No recent orders</p>
+                      <p className="text-xs text-offwhite/30 mt-1">New orders will appear here</p>
                     </div>
-                  ))}
+                  )}
                   <Button variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10" asChild>
                     <a href="/admin/orders">View All Orders</a>
                   </Button>
@@ -437,29 +454,37 @@ export default function AdminDashboard() {
                 <CardDescription className="text-offwhite/70">Product category distribution</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={stats.topProducts}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    >
-                      {stats.topProducts.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
-                      labelStyle={{ color: "#FFD700" }}
-                    />
-                    <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  </PieChart>
-                </ResponsiveContainer>
+                {stats.topProducts.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={stats.topProducts}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      >
+                        {stats.topProducts.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
+                        labelStyle={{ color: "#FFD700" }}
+                      />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-center">
+                    <Package className="h-12 w-12 text-gold/30 mb-2" />
+                    <p className="text-offwhite/50">No category data available</p>
+                    <p className="text-xs text-offwhite/30 mt-1">Complete some sales to see category statistics</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -583,10 +608,6 @@ export default function AdminDashboard() {
                         <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.8} />
                         <stop offset="95%" stopColor="#D4AF37" stopOpacity={0.1} />
                       </linearGradient>
-                      <linearGradient id="colorPageViews" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#82ca9d" stopOpacity={0.1} />
-                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="name" stroke="#999" />
@@ -615,29 +636,37 @@ export default function AdminDashboard() {
                 <CardDescription className="text-offwhite/70">Where visitors come from</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={stats.topProducts}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    >
-                      {stats.topProducts.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
-                      labelStyle={{ color: "#FFD700" }}
-                    />
-                    <Legend layout="vertical" verticalAlign="middle" align="right" />
-                  </PieChart>
-                </ResponsiveContainer>
+                {stats.topProducts.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={stats.topProducts}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      >
+                        {stats.topProducts.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#111", border: "1px solid #333" }}
+                        labelStyle={{ color: "#FFD700" }}
+                      />
+                      <Legend layout="vertical" verticalAlign="middle" align="right" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-center">
+                    <Eye className="h-12 w-12 text-gold/30 mb-2" />
+                    <p className="text-offwhite/50">No traffic source data available</p>
+                    <p className="text-xs text-offwhite/30 mt-1">Analytics will appear as traffic increases</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

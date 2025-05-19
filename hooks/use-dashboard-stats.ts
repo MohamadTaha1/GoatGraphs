@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, query, getDocs, where, Timestamp } from "firebase/firestore"
+import { collection, query, getDocs, where, Timestamp, orderBy } from "firebase/firestore"
+import { getFirestoreInstance } from "@/lib/firebase"
 
 export interface DashboardStats {
   totalRevenue: number
@@ -46,13 +46,15 @@ export function useDashboardStats() {
 
         const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo)
 
-        // Fetch total revenue from all orders
-        const ordersQuery = query(collection(db, "orders"))
+        // Fetch orders
+        const ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"))
         const ordersSnapshot = await getDocs(ordersQuery)
 
         let totalRevenue = 0
         const totalOrders = ordersSnapshot.size
         let monthlyOrders = 0
+        const productSales = {}
+        const monthlyRevenue = {}
 
         // Order status counts
         const orderStatusCounts = {
@@ -64,21 +66,27 @@ export function useDashboardStats() {
         }
 
         // Recent orders
-        const recentOrdersData: any[] = []
+        const recentOrdersData = []
 
         // Process orders
         ordersSnapshot.forEach((doc) => {
           const orderData = doc.data()
 
           // Add to total revenue
-          totalRevenue += orderData.total || 0
+          const orderTotal = Number.parseFloat(orderData.total) || 0
+          totalRevenue += orderTotal
 
           // Count monthly orders
-          if (
-            orderData.createdAt &&
-            (orderData.createdAt.toDate?.() > thirtyDaysAgo || new Date(orderData.createdAt) > thirtyDaysAgo)
-          ) {
-            monthlyOrders++
+          if (orderData.createdAt) {
+            const orderDate = orderData.createdAt.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt)
+
+            if (orderDate > thirtyDaysAgo) {
+              monthlyOrders++
+            }
+
+            // Track monthly revenue
+            const monthYear = `${orderDate.getMonth() + 1}-${orderDate.getFullYear()}`
+            monthlyRevenue[monthYear] = (monthlyRevenue[monthYear] || 0) + orderTotal
           }
 
           // Count order statuses
@@ -87,23 +95,31 @@ export function useDashboardStats() {
             orderStatusCounts[status]++
           }
 
+          // Track product sales
+          if (orderData.items && Array.isArray(orderData.items)) {
+            orderData.items.forEach((item) => {
+              const category = item.category || "Uncategorized"
+              productSales[category] = (productSales[category] || 0) + 1
+            })
+          }
+
           // Add to recent orders if it's one of the 5 most recent
           if (recentOrdersData.length < 5) {
+            let orderDate = new Date()
+            if (orderData.createdAt) {
+              orderDate = orderData.createdAt.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt)
+            }
+
             recentOrdersData.push({
               id: doc.id,
               customer: orderData.customerInfo?.name || "Unknown Customer",
-              date: orderData.createdAt
-                ? (orderData.createdAt.toDate?.() || new Date(orderData.createdAt)).toISOString().split("T")[0]
-                : "Unknown Date",
-              amount: orderData.total || 0,
+              date: orderDate.toISOString().split("T")[0],
+              amount: orderTotal,
               status: orderData.orderStatus || "processing",
               items: (orderData.items || []).length,
             })
           }
         })
-
-        // Sort recent orders by date (newest first)
-        recentOrdersData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
         // Fetch new customers in the last 30 days
         const newCustomersQuery = query(
@@ -123,16 +139,19 @@ export function useDashboardStats() {
 
         productsSnapshot.forEach((doc) => {
           const productData = doc.data()
-          inventoryValue += (productData.price || 0) * (productData.quantity || 1)
+          const price = Number.parseFloat(productData.price) || 0
+          const quantity = Number.parseInt(productData.quantity) || 0
+
+          inventoryValue += price * quantity
 
           // Count product types for top products chart
-          const productType = productData.type || "other"
+          const productType = productData.category || "Other"
           productCounts[productType] = (productCounts[productType] || 0) + 1
         })
 
         // Create top products data
-        const topProductsData = Object.entries(productCounts)
-          .map(([name, value]) => ({ name, value }))
+        const topProductsData = Object.entries(productSales)
+          .map(([name, value]) => ({ name, value: Number(value) }))
           .sort((a, b) => b.value - a.value)
           .slice(0, 5)
 
@@ -140,7 +159,7 @@ export function useDashboardStats() {
         const orderStatusData = Object.entries(orderStatusCounts)
           .map(([name, value]) => ({
             name: name.charAt(0).toUpperCase() + name.slice(1),
-            value,
+            value: Number(value),
           }))
           .filter((item) => item.value > 0)
 
@@ -151,25 +170,11 @@ export function useDashboardStats() {
           monthDate.setMonth(monthDate.getMonth() - i)
 
           const monthName = monthDate.toLocaleString("default", { month: "short" })
-          const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
-          const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
-
-          // Count orders in this month
-          let monthTotal = 0
-          ordersSnapshot.forEach((doc) => {
-            const orderData = doc.data()
-            const orderDate = orderData.createdAt
-              ? orderData.createdAt.toDate?.() || new Date(orderData.createdAt)
-              : null
-
-            if (orderDate && orderDate >= monthStart && orderDate <= monthEnd) {
-              monthTotal += orderData.total || 0
-            }
-          })
+          const monthYear = `${monthDate.getMonth() + 1}-${monthDate.getFullYear()}`
 
           salesData.push({
             name: monthName,
-            total: monthTotal,
+            total: monthlyRevenue[monthYear] || 0,
           })
         }
 
