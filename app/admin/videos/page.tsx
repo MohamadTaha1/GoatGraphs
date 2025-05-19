@@ -11,16 +11,79 @@ import { Loader2, Plus, Video, MessageSquare, CheckCircle, Clock, X, Play, Edit,
 import Link from "next/link"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
-import { useVideos, useVideoRequests, deleteVideo, updateVideoRequestStatus } from "@/hooks/use-videos"
+import { db } from "@/lib/firebase"
+import { collection, getDocs, query, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore"
+import type { Video as VideoType, VideoRequest } from "@/hooks/use-videos"
 
 export default function AdminVideosPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { videos, loading: loadingVideos, refreshData } = useVideos()
-  const { requests, loading: loadingRequests } = useVideoRequests()
+  const [videos, setVideos] = useState<VideoType[]>([])
+  const [requests, setRequests] = useState<VideoRequest[]>([])
+  const [loadingVideos, setLoadingVideos] = useState(true)
+  const [loadingRequests, setLoadingRequests] = useState(true)
   const [activeTab, setActiveTab] = useState("videos")
   const [searchTerm, setSearchTerm] = useState("")
+
+  // Fetch videos
+  const fetchVideos = async () => {
+    try {
+      setLoadingVideos(true)
+      const videosQuery = query(collection(db, "videos"), orderBy("createdAt", "desc"))
+      const querySnapshot = await getDocs(videosQuery)
+
+      const videosData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as VideoType[]
+
+      setVideos(videosData)
+    } catch (error) {
+      console.error("Error fetching videos:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load videos. Please try again.",
+        variant: "destructive",
+      })
+      // Use fallback data
+      setVideos([])
+    } finally {
+      setLoadingVideos(false)
+    }
+  }
+
+  // Fetch video requests
+  const fetchRequests = async () => {
+    try {
+      setLoadingRequests(true)
+      const requestsQuery = query(collection(db, "videoRequests"), orderBy("createdAt", "desc"))
+      const querySnapshot = await getDocs(requestsQuery)
+
+      const requestsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as VideoRequest[]
+
+      setRequests(requestsData)
+    } catch (error) {
+      console.error("Error fetching video requests:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load video requests. Please try again.",
+        variant: "destructive",
+      })
+      // Use fallback data
+      setRequests([])
+    } finally {
+      setLoadingRequests(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchVideos()
+    fetchRequests()
+  }, [])
 
   useEffect(() => {
     // Set active tab based on URL parameter
@@ -39,15 +102,18 @@ export default function AdminVideosPage() {
 
   const handleDeleteVideo = async (id: string) => {
     if (confirm("Are you sure you want to delete this video? This action cannot be undone.")) {
-      const success = await deleteVideo(id)
-      if (success) {
+      try {
+        await deleteDoc(doc(db, "videos", id))
+
         toast({
           title: "Video deleted",
           description: "The video has been successfully deleted.",
         })
+
         // Refresh the videos list
-        refreshData()
-      } else {
+        fetchVideos()
+      } catch (error) {
+        console.error("Error deleting video:", error)
         toast({
           title: "Error",
           description: "Failed to delete the video. Please try again.",
@@ -58,8 +124,12 @@ export default function AdminVideosPage() {
   }
 
   const handleUpdateRequestStatus = async (id: string, status: "accepted" | "rejected") => {
-    const success = await updateVideoRequestStatus(id, status)
-    if (success) {
+    try {
+      await updateDoc(doc(db, "videoRequests", id), {
+        status,
+        updatedAt: new Date(),
+      })
+
       toast({
         title: status === "accepted" ? "Request accepted" : "Request rejected",
         description:
@@ -67,9 +137,11 @@ export default function AdminVideosPage() {
             ? "The video request has been accepted and is now in progress."
             : "The video request has been rejected.",
       })
-      // Refresh the page to update the request list
-      router.refresh()
-    } else {
+
+      // Refresh the requests list
+      fetchRequests()
+    } catch (error) {
+      console.error("Error updating request status:", error)
       toast({
         title: "Error",
         description: "Failed to update the request status. Please try again.",
@@ -209,7 +281,7 @@ export default function AdminVideosPage() {
                       className="object-cover"
                     />
                     {video.featured && (
-                      <Badge className="absolute top-2 right-2 bg-gold-gradient text-black">Featured</Badge>
+                      <Badge className="absolute top-2 right-2 bg-amber-500 text-black">Featured</Badge>
                     )}
                   </div>
                   <CardContent className="p-4">
@@ -267,7 +339,7 @@ export default function AdminVideosPage() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
                     <th className="text-left py-3 px-4">Player</th>
                     <th className="text-left py-3 px-4">Recipient</th>
                     <th className="text-left py-3 px-4">Occasion</th>
@@ -279,7 +351,10 @@ export default function AdminVideosPage() {
                 </thead>
                 <tbody>
                   {filteredRequests.map((request) => (
-                    <tr key={request.id} className="border-b border-gray-800 hover:bg-gray-900/50">
+                    <tr
+                      key={request.id}
+                      className="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900/50"
+                    >
                       <td className="py-3 px-4 font-medium">{request.player}</td>
                       <td className="py-3 px-4">{request.recipientName}</td>
                       <td className="py-3 px-4">{request.occasion}</td>

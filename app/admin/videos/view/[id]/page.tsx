@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, ArrowLeft, Edit, Play } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -138,7 +138,7 @@ export default function ViewVideoPage({ params }: { params: { id: string } }) {
             <CardHeader>
               <CardTitle className="flex justify-between items-center">
                 <span>Video Preview</span>
-                {video.featured && <Badge className="bg-gold-gradient text-black">Featured</Badge>}
+                {video.featured && <Badge className="bg-amber-500 text-black">Featured</Badge>}
               </CardTitle>
             </CardHeader>
             <CardContent>
