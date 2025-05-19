@@ -727,20 +727,20 @@ export function useVideoRequests() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
-    async function fetchRequests() {
-      try {
-        setLoading(true)
-        const data = await getAllVideoRequests()
-        setRequests(data)
-      } catch (err) {
-        console.error("Error in useVideoRequests:", err)
-        setError(err instanceof Error ? err : new Error("Failed to fetch video requests"))
-      } finally {
-        setLoading(false)
-      }
+  const fetchRequests = async () => {
+    try {
+      setLoading(true)
+      const data = await getAllVideoRequests()
+      setRequests(data)
+    } catch (err) {
+      console.error("Error in useVideoRequests:", err)
+      setError(err instanceof Error ? err : new Error("Failed to fetch video requests"))
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchRequests()
   }, [])
 
