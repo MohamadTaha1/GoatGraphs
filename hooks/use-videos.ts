@@ -23,9 +23,17 @@ export interface Video {
   thumbnailUrl: string
   videoUrl: string
   player: string
-  featured: boolean
-  createdAt: Timestamp
-  updatedAt: Timestamp
+  playerName?: string // For backward compatibility
+  price?: number
+  duration?: string
+  category?: string
+  position?: string
+  team?: string
+  availability?: string
+  available?: boolean
+  featured?: boolean
+  createdAt?: Timestamp
+  updatedAt?: Timestamp
 }
 
 export interface VideoRequest {
@@ -273,6 +281,25 @@ export async function addVideo(videoData: Omit<Video, "id" | "createdAt" | "upda
   }
 }
 
+// Update an existing video
+export async function updateVideo(id: string, videoData: Partial<Video>) {
+  try {
+    const videoRef = doc(db, "videos", id)
+
+    // Add updatedAt timestamp
+    const updateData = {
+      ...videoData,
+      updatedAt: Timestamp.now(),
+    }
+
+    await updateDoc(videoRef, updateData)
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating video:", error)
+    return { success: false, error }
+  }
+}
+
 // Get all videos
 export async function getAllVideos(): Promise<Video[]> {
   try {
@@ -344,9 +371,7 @@ export function useVideos(options: UseVideosOptions = {}) {
       }
 
       // Check if Firestore is available
-      const db = null
       try {
-        // db = await getFirestore() //Commented out to use global db
         if (db) {
           setFirestoreAvailable(true)
         } else {
@@ -355,10 +380,6 @@ export function useVideos(options: UseVideosOptions = {}) {
 
           // Filter fallback videos based on options
           let filteredVideos = [...FALLBACK_VIDEOS]
-
-          // if (onlyAvailable) { //No available property
-          //   filteredVideos = filteredVideos.filter((video) => video.available)
-          // }
 
           if (category) {
             filteredVideos = filteredVideos.filter((video) => video.category === category)
@@ -387,10 +408,6 @@ export function useVideos(options: UseVideosOptions = {}) {
         // Filter fallback videos based on options
         let filteredVideos = [...FALLBACK_VIDEOS]
 
-        // if (onlyAvailable) { //No available property
-        //   filteredVideos = filteredVideos.filter((video) => video.available)
-        // }
-
         if (category) {
           filteredVideos = filteredVideos.filter((video) => video.category === category)
         }
@@ -413,26 +430,19 @@ export function useVideos(options: UseVideosOptions = {}) {
       }
 
       try {
-        // Dynamically import Firestore functions to avoid SSR issues
-        // const { collection, getDocs, query, where, orderBy, limit: firestoreLimit } = await import("firebase/firestore") //Commented out to use global imports
-
         // Create query based on filters for videos
         const videosQuery = collection(db, "videos")
         const videoConstraints = []
 
-        // if (onlyAvailable) { //No available property
-        //   videoConstraints.push(where("available", "==", true))
-        // }
+        if (onlyAvailable) {
+          videoConstraints.push(where("available", "==", true))
+        }
 
         if (category) {
           videoConstraints.push(where("category", "==", category))
         }
 
-        videoConstraints.push(orderBy("player", "asc"))
-
-        if (limitCount) {
-          // videoConstraints.push(firestoreLimit(limitCount)) //No limit function
-        }
+        videoConstraints.push(orderBy("createdAt", "desc"))
 
         const q = query(videosQuery, ...videoConstraints)
         const querySnapshot = await getDocs(q)
@@ -454,10 +464,6 @@ export function useVideos(options: UseVideosOptions = {}) {
 
           // Filter fallback videos based on options
           let filteredVideos = [...FALLBACK_VIDEOS]
-
-          // if (onlyAvailable) { //No available property
-          //   filteredVideos = filteredVideos.filter((video) => video.available)
-          // }
 
           if (category) {
             filteredVideos = filteredVideos.filter((video) => video.category === category)
@@ -545,10 +551,6 @@ export function useVideos(options: UseVideosOptions = {}) {
         // Use fallback videos on query error
         let filteredVideos = [...FALLBACK_VIDEOS]
 
-        // if (onlyAvailable) { //No available property
-        //   filteredVideos = filteredVideos.filter((video) => video.available)
-        // }
-
         if (category) {
           filteredVideos = filteredVideos.filter((video) => video.category === category)
         }
@@ -572,10 +574,6 @@ export function useVideos(options: UseVideosOptions = {}) {
 
       // Use fallback videos on any error
       let filteredVideos = [...FALLBACK_VIDEOS]
-
-      // if (onlyAvailable) { //No available property
-      //   filteredVideos = filteredVideos.filter((video) => video.available)
-      // }
 
       if (category) {
         filteredVideos = filteredVideos.filter((video) => video.category === category)
@@ -638,9 +636,7 @@ export async function getVideo(id: string): Promise<Video | null> {
       return fallbackVideo
     }
 
-    let db
     try {
-      // db = await getFirestore() //Commented out to use global db
       if (!db) {
         console.warn("Firestore instance is null, returning fallback video if available")
         return fallbackVideo || null
@@ -651,9 +647,6 @@ export async function getVideo(id: string): Promise<Video | null> {
     }
 
     try {
-      // Dynamically import Firestore functions
-      // const { doc, getDoc } = await import("firebase/firestore") //Commented out to use global imports
-
       const docRef = doc(db, "videos", id)
       const docSnap = await getDoc(docRef)
 
@@ -675,208 +668,6 @@ export async function getVideo(id: string): Promise<Video | null> {
     return null
   }
 }
-
-// Function to get a single video request by ID
-// export async function getVideoRequest(id: string): Promise<VideoRequest | null> { //Replaced with new function
-//   try {
-//     if (typeof window === "undefined") {
-//       console.error("Cannot get video request server-side")
-//       return null
-//     }
-
-//     // Check if the ID matches any fallback video request
-//     const fallbackRequest = FALLBACK_VIDEO_REQUESTS.find((v) => v.id === id || v.orderId === id)
-//     if (fallbackRequest) {
-//       return fallbackRequest
-//     }
-
-//     let db
-//     try {
-//       // db = await getFirestore() //Commented out to use global db
-//       if (!db) {
-//         console.warn("Firestore instance is null, returning fallback request if available")
-//         return fallbackRequest || null
-//       }
-//     } catch (err) {
-//       console.error("Failed to get Firestore instance:", err)
-//       return fallbackRequest || null
-//     }
-
-//     try {
-//       // Dynamically import Firestore functions
-//       // const { doc, getDoc, collection, query, where, getDocs } = await import("firebase/firestore") //Commented out to use global imports
-
-//       // First try to get from orders collection
-//       const orderRef = doc(db, "orders", id)
-//       const orderSnap = await getDoc(orderRef)
-
-//       if (orderSnap.exists() && orderSnap.data().orderType === "video") {
-//         const data = orderSnap.data()
-//         return {
-//           id: orderSnap.id,
-//           player: data.videoRequest?.player || "Unknown Player",
-//           occasion: data.videoRequest?.occasion || "Not specified",
-//           recipientName: data.videoRequest?.recipientName || "Not specified",
-//           message: data.videoRequest?.message || "",
-//           deliveryDate: data.videoRequest?.deliveryDate || new Date().toISOString().split("T")[0],
-//           status: data.orderStatus || "pending",
-//           createdAt: data.createdAt,
-//           customerName: data.customerInfo?.name,
-//           customerEmail: data.customerInfo?.email,
-//           userId: data.userId,
-//           orderId: orderSnap.id,
-//           videoUrl: data.videoRequest?.videoUrl,
-//         } as VideoRequest
-//       }
-
-//       // If not found in orders, try videoRequests collection
-//       const requestsRef = collection(db, "videoRequests")
-//       const q = query(requestsRef, where("orderId", "==", id))
-//       const querySnapshot = await getDocs(q)
-
-//       if (!querySnapshot.empty) {
-//         const docData = querySnapshot.docs[0].data()
-//         return {
-//           id: querySnapshot.docs[0].id,
-//           ...docData,
-//         } as VideoRequest
-//       }
-
-//       // Try direct lookup by ID in videoRequests
-//       const directRef = doc(db, "videoRequests", id)
-//       const directSnap = await getDoc(directRef)
-
-//       if (directSnap.exists()) {
-//         return {
-//           id: directSnap.id,
-//           ...directSnap.data(),
-//         } as VideoRequest
-//       }
-
-//       console.log("No such video request!")
-//       return fallbackRequest || null
-//     } catch (error) {
-//       console.error("Error getting video request:", error)
-//       return fallbackRequest || null
-//     }
-//   } catch (error) {
-//     console.error("Error getting video request:", error)
-//     return null
-//   }
-// }
-
-// Function to update a video request status
-// export async function updateVideoRequestStatus( //Replaced with new function
-//   requestId: string,
-//   status: "pending" | "accepted" | "completed" | "rejected",
-//   videoUrl?: string,
-// ): Promise<boolean> {
-//   try {
-//     if (typeof window === "undefined") {
-//       console.error("Cannot update video request server-side")
-//       return false
-//     }
-
-//     let db
-//     try {
-//       // db = await getFirestore() //Commented out to use global db
-//       if (!db) {
-//         console.warn("Firestore instance is null, cannot update video request")
-//         return false
-//       }
-//     } catch (err) {
-//       console.error("Failed to get Firestore instance:", err)
-//       return false
-//     }
-
-//     // Dynamically import Firestore functions
-//     // const { doc, getDoc, updateDoc, collection, query, where, getDocs } = await import("firebase/firestore") //Commented out to use global imports
-
-//     // First check if this is an order ID
-//     const orderRef = doc(db, "orders", requestId)
-//     const orderSnap = await getDoc(orderRef)
-
-//     if (orderSnap.exists() && orderSnap.data().orderType === "video") {
-//       // Update the order status
-//       const updateData: any = {
-//         orderStatus: status,
-//         updatedAt: new Date(),
-//         "videoRequest.status": status,
-//       }
-
-//       if (videoUrl) {
-//         updateData["videoRequest.videoUrl"] = videoUrl
-//       }
-
-//       await updateDoc(orderRef, updateData)
-
-//       // Also update the corresponding videoRequest if it exists
-//       const requestsRef = collection(db, "videoRequests")
-//       const q = query(requestsRef, where("orderId", "==", requestId))
-//       const querySnapshot = await getDocs(q)
-
-//       if (!querySnapshot.empty) {
-//         const requestRef = doc(db, "videoRequests", querySnapshot.docs[0].id)
-//         const requestUpdateData: any = {
-//           status: status,
-//         }
-
-//         if (videoUrl) {
-//           requestUpdateData.videoUrl = videoUrl
-//         }
-
-//         await updateDoc(requestRef, requestUpdateData)
-//       }
-
-//       return true
-//     }
-
-//     // If not found as an order, try direct update to videoRequests
-//     const requestRef = doc(db, "videoRequests", requestId)
-//     const requestSnap = await getDoc(requestRef)
-
-//     if (requestSnap.exists()) {
-//       const updateData: any = {
-//         status: status,
-//       }
-
-//       if (videoUrl) {
-//         updateData.videoUrl = videoUrl
-//       }
-
-//       await updateDoc(requestRef, updateData)
-
-//       // If this request has an orderId, update the order too
-//       const orderId = requestSnap.data().orderId
-//       if (orderId) {
-//         const linkedOrderRef = doc(db, "orders", orderId)
-//         const linkedOrderSnap = await getDoc(linkedOrderRef)
-
-//         if (linkedOrderSnap.exists()) {
-//           const orderUpdateData: any = {
-//             orderStatus: status,
-//             updatedAt: new Date(),
-//             "videoRequest.status": status,
-//           }
-
-//           if (videoUrl) {
-//             orderUpdateData["videoRequest.videoUrl"] = videoUrl
-//           }
-
-//           await updateDoc(linkedOrderRef, orderUpdateData)
-//         }
-//       }
-
-//       return true
-//     }
-
-//     console.error("No such video request found to update")
-//     return false
-//   } catch (error) {
-//     console.error("Error updating video request:", error)
-//     return false
-//   }
-// }
 
 // React hook for videos
 export function useVideos2() {
@@ -953,7 +744,7 @@ export function useVideoRequests() {
     fetchRequests()
   }, [])
 
-  return { requests, loading, error }
+  return { requests, loading, error, refreshData: fetchRequests }
 }
 
 // React hook for user video requests

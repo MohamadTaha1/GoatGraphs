@@ -7,12 +7,14 @@ import { collection, query, where, getDocs, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { useMediaQuery } from "@/hooks/use-media-query"
 
 interface Banner {
   id: string
   title: string
   subtitle?: string
   imageUrl: string
+  mobileImageUrl?: string
   linkUrl?: string
   position: string
   active: boolean
@@ -27,6 +29,7 @@ export default function BannerDisplay({ position, className = "" }: BannerDispla
   const [banners, setBanners] = useState<Banner[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const isMobile = useMediaQuery("(max-width: 768px)")
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -59,7 +62,7 @@ export default function BannerDisplay({ position, className = "" }: BannerDispla
   if (loading) {
     return (
       <div className={`w-full ${className}`}>
-        <Skeleton className="w-full h-[400px] rounded-lg" />
+        <Skeleton className="w-full h-[300px] md:h-[400px] rounded-lg" />
       </div>
     )
   }
@@ -79,11 +82,14 @@ export default function BannerDisplay({ position, className = "" }: BannerDispla
   // Display the first active banner for this position
   const banner = banners[0]
 
+  // Choose the appropriate image URL based on device
+  const imageUrl = isMobile && banner.mobileImageUrl ? banner.mobileImageUrl : banner.imageUrl
+
   return (
     <div className={`relative w-full overflow-hidden rounded-lg ${className}`}>
       <div className="relative w-full h-[300px] md:h-[400px]">
         <Image
-          src={banner.imageUrl || "/placeholder.svg?height=400&width=1200&text=Banner"}
+          src={imageUrl || "/placeholder.svg?height=400&width=1200&text=Banner"}
           alt={banner.title}
           fill
           className="object-cover"

@@ -4,17 +4,18 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Loader2, ArrowLeft, Save } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "@/lib/firebase"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2, ArrowLeft, Save, Trash2, Upload } from "lucide-react"
 import Image from "next/image"
 
 interface VideoData {
@@ -22,10 +23,19 @@ interface VideoData {
   title: string
   description: string
   player: string
-  videoUrl: string
+  playerName?: string // For backward compatibility
+  price?: number
+  duration?: string
+  category?: string
+  position?: string
+  team?: string
+  availability?: string
+  available?: boolean
+  featured?: boolean
   thumbnailUrl: string
-  featured: boolean
+  videoUrl: string
   createdAt?: any
+  updatedAt?: any
 }
 
 export default function EditVideoPage({ params }: { params: { id: string } }) {
@@ -38,23 +48,38 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
     title: "",
     description: "",
     player: "",
-    videoUrl: "",
     thumbnailUrl: "",
+    videoUrl: "",
+    price: 0,
+    duration: "",
+    category: "",
+    position: "",
+    team: "",
+    availability: "7-14 days",
+    available: true,
     featured: false,
   })
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState({ thumbnail: 0, video: 0 })
 
   // Fetch video data
   useEffect(() => {
     const fetchVideo = async () => {
       try {
+        setFetchLoading(true)
         const videoDoc = await getDoc(doc(db, "videos", params.id))
 
         if (videoDoc.exists()) {
           const videoData = { id: videoDoc.id, ...videoDoc.data() } as VideoData
+
+          // Handle backward compatibility with different field names
+          if (!videoData.player && videoData.playerName) {
+            videoData.player = videoData.playerName
+          }
+
           setFormData(videoData)
           setThumbnailPreview(videoData.thumbnailUrl)
           setVideoPreview(videoData.videoUrl)
@@ -82,12 +107,22 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
   }, [params.id, router, toast])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
+    const { name, value, type } = e.target
+
+    // Handle number inputs
+    if (type === "number") {
+      setFormData((prev) => ({ ...prev, [name]: Number.parseFloat(value) || 0 }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSwitchChange = (checked: boolean) => {
-    setFormData((prev) => ({ ...prev, featured: checked }))
+  const handleSwitchChange = (name: string, checked: boolean) => {
+    setFormData((prev) => ({ ...prev, [name]: checked }))
   }
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,6 +150,21 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
     }
   }
 
+  const clearThumbnail = () => {
+    setThumbnailFile(null)
+    setThumbnailPreview(formData.thumbnailUrl)
+  }
+
+  const clearVideo = () => {
+    setVideoFile(null)
+    setVideoPreview(formData.videoUrl)
+
+    // Release object URL to prevent memory leaks
+    if (videoPreview && videoPreview !== formData.videoUrl) {
+      URL.revokeObjectURL(videoPreview)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -139,7 +189,7 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
       // Update video in Firestore
       await updateDoc(doc(db, "videos", params.id), {
         ...updatedData,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       })
 
       toast({
@@ -162,7 +212,7 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
 
   if (fetchLoading) {
     return (
-      <div className="container py-8 flex justify-center items-center">
+      <div className="container py-8 flex justify-center items-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin" />
         <span className="ml-2">Loading video data...</span>
       </div>
@@ -171,20 +221,24 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="container py-8">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Videos
-      </Button>
+      <div className="flex justify-between items-center mb-6">
+        <Button variant="ghost" onClick={() => router.back()} className="flex items-center">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Videos
+        </Button>
+        <h1 className="text-2xl font-bold">Edit Video</h1>
+      </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Edit Video</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit}>
+          <CardHeader>
+            <CardTitle>Video Information</CardTitle>
+            <CardDescription>Update the video details and media files</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="title">Title</Label>
+                  <Label htmlFor="title">Video Title</Label>
                   <Input id="title" name="title" value={formData.title} onChange={handleInputChange} required />
                 </div>
 
@@ -200,72 +254,229 @@ export default function EditVideoPage({ params }: { params: { id: string } }) {
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
-                    rows={5}
-                    required
+                    rows={4}
                   />
                 </div>
 
+                <div>
+                  <Label htmlFor="price">Price ($)</Label>
+                  <Input
+                    id="price"
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.price}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="duration">Duration (seconds)</Label>
+                  <Input
+                    id="duration"
+                    name="duration"
+                    value={formData.duration}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 30-60"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="greeting">Greeting</SelectItem>
+                      <SelectItem value="birthday">Birthday</SelectItem>
+                      <SelectItem value="congratulations">Congratulations</SelectItem>
+                      <SelectItem value="motivation">Motivation</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="position">Player Position</Label>
+                  <Input
+                    id="position"
+                    name="position"
+                    value={formData.position}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Forward, Midfielder"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="team">Current Team</Label>
+                  <Input
+                    id="team"
+                    name="team"
+                    value={formData.team}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Manchester United"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="availability">Availability</Label>
+                  <Select
+                    value={formData.availability}
+                    onValueChange={(value) => handleSelectChange("availability", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select availability" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="3-5 days">3-5 days</SelectItem>
+                      <SelectItem value="5-7 days">5-7 days</SelectItem>
+                      <SelectItem value="7-10 days">7-10 days</SelectItem>
+                      <SelectItem value="7-14 days">7-14 days</SelectItem>
+                      <SelectItem value="10-14 days">10-14 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="flex items-center space-x-2">
-                  <Switch id="featured" checked={formData.featured} onCheckedChange={handleSwitchChange} />
+                  <Switch
+                    id="available"
+                    checked={formData.available}
+                    onCheckedChange={(checked) => handleSwitchChange("available", checked)}
+                  />
+                  <Label htmlFor="available">Available for Booking</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="featured"
+                    checked={formData.featured}
+                    onCheckedChange={(checked) => handleSwitchChange("featured", checked)}
+                  />
                   <Label htmlFor="featured">Featured Video</Label>
                 </div>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <Label htmlFor="thumbnail">Thumbnail Image (Leave empty to keep current)</Label>
-                  <Input id="thumbnail" type="file" accept="image/*" onChange={handleThumbnailChange} />
-                  <p className="text-sm text-gray-500 mt-1">Recommended size: 640x360px (16:9 ratio)</p>
-                </div>
-
-                {thumbnailPreview && (
-                  <div className="mt-4">
-                    <Label>Thumbnail Preview</Label>
-                    <div className="mt-2 relative aspect-video w-full overflow-hidden rounded-md border">
-                      <Image
-                        src={thumbnailPreview || "/placeholder.svg"}
-                        alt="Thumbnail preview"
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                      />
+                  <Label className="block mb-2">Thumbnail Image</Label>
+                  {thumbnailPreview ? (
+                    <div className="space-y-4">
+                      <div className="relative aspect-video w-full overflow-hidden rounded-md border">
+                        <Image
+                          src={thumbnailPreview || "/placeholder.svg"}
+                          alt="Thumbnail preview"
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById("thumbnail-upload")?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" /> Change
+                        </Button>
+                        {thumbnailFile && (
+                          <Button type="button" variant="outline" onClick={clearThumbnail}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Cancel
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex items-center justify-center border border-dashed rounded-md h-40">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById("thumbnail-upload")?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" /> Upload Thumbnail
+                      </Button>
+                    </div>
+                  )}
+                  <Input
+                    id="thumbnail-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleThumbnailChange}
+                    className="hidden"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">Recommended size: 1280x720px (16:9 ratio)</p>
+                </div>
 
                 <div>
-                  <Label htmlFor="video">Video File (Leave empty to keep current)</Label>
-                  <Input id="video" type="file" accept="video/*" onChange={handleVideoChange} />
-                  <p className="text-sm text-gray-500 mt-1">Max file size: 100MB</p>
-                </div>
-
-                {videoPreview && (
-                  <div className="mt-4">
-                    <Label>Video Preview</Label>
-                    <div className="mt-2 relative aspect-video w-full overflow-hidden rounded-md border">
-                      <video
-                        src={videoPreview}
-                        controls
-                        className="w-full h-full"
-                        onError={(e) => {
-                          console.error("Video preview error:", e)
-                        }}
-                      />
+                  <Label className="block mb-2">Video File</Label>
+                  {videoPreview ? (
+                    <div className="space-y-4">
+                      <div className="relative aspect-video w-full overflow-hidden rounded-md border">
+                        <video
+                          src={videoPreview}
+                          controls
+                          className="w-full h-full"
+                          onError={(e) => {
+                            console.error("Video preview error:", e)
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById("video-upload")?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" /> Change
+                        </Button>
+                        {videoFile && (
+                          <Button type="button" variant="outline" onClick={clearVideo}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Cancel
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex items-center justify-center border border-dashed rounded-md h-40">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById("video-upload")?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" /> Upload Video
+                      </Button>
+                    </div>
+                  )}
+                  <Input
+                    id="video-upload"
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoChange}
+                    className="hidden"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">Max file size: 100MB</p>
+                </div>
               </div>
             </div>
-
-            <div className="flex justify-end">
-              <Button type="submit" disabled={loading} className="flex items-center">
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <Save className="mr-2 h-4 w-4" />
-                {loading ? "Updating..." : "Update Video"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" type="button" onClick={() => router.push("/admin/videos")}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading} className="flex items-center">
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" /> Update Video
+                </>
+              )}
+            </Button>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   )

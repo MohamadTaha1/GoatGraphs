@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Plus, Video, MessageSquare, CheckCircle, Clock, X, Play, Edit, Trash2 } from "lucide-react"
+import { Loader2, Plus, Video, MessageSquare, CheckCircle, Clock, X, Play, Edit, Trash2, Eye } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useToast } from "@/hooks/use-toast"
@@ -17,7 +17,7 @@ export default function AdminVideosPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { videos, loading: loadingVideos } = useVideos()
+  const { videos, loading: loadingVideos, refreshData } = useVideos()
   const { requests, loading: loadingRequests } = useVideoRequests()
   const [activeTab, setActiveTab] = useState("videos")
   const [searchTerm, setSearchTerm] = useState("")
@@ -45,8 +45,8 @@ export default function AdminVideosPage() {
           title: "Video deleted",
           description: "The video has been successfully deleted.",
         })
-        // Refresh the page to update the video list
-        router.refresh()
+        // Refresh the videos list
+        refreshData()
       } else {
         toast({
           title: "Error",
@@ -80,15 +80,15 @@ export default function AdminVideosPage() {
 
   const filteredVideos = videos.filter(
     (video) =>
-      video.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      video.player.toLowerCase().includes(searchTerm.toLowerCase()),
+      video.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      video.player?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const filteredRequests = requests.filter(
     (request) =>
-      request.player.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.occasion.toLowerCase().includes(searchTerm.toLowerCase()),
+      request.player?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.occasion?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const getStatusColor = (status: string) => {
@@ -219,7 +219,12 @@ export default function AdminVideosPage() {
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-muted-foreground">Added: {formatDate(video.createdAt)}</span>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" asChild>
+                        <Button size="sm" variant="outline" asChild title="View Video">
+                          <Link href={`/admin/videos/view/${video.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button size="sm" variant="outline" asChild title="Edit Video">
                           <Link href={`/admin/videos/edit/${video.id}`}>
                             <Edit className="h-4 w-4" />
                           </Link>
@@ -229,6 +234,7 @@ export default function AdminVideosPage() {
                           variant="outline"
                           className="text-red-500 hover:text-red-600"
                           onClick={() => handleDeleteVideo(video.id)}
+                          title="Delete Video"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
