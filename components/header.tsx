@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   ShoppingCart,
-  Search,
   Menu,
   X,
   ChevronDown,
@@ -30,12 +29,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/auth-context"
 import { useCart } from "./cart-provider"
-import { SearchBar } from "./search-bar"
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const pathname = usePathname()
   const { user, logout, isGuest } = useAuth()
   const { itemCount = 0 } = useCart()
@@ -52,12 +49,11 @@ export function Header() {
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false)
-    setIsSearchOpen(false)
   }, [pathname])
 
   // Add this new useEffect after the existing useEffect hooks
   useEffect(() => {
-    if (isMobileMenuOpen || isSearchOpen) {
+    if (isMobileMenuOpen) {
       // Disable scrolling on body when menu is open
       document.body.style.overflow = "hidden"
     } else {
@@ -69,7 +65,7 @@ export function Header() {
     return () => {
       document.body.style.overflow = ""
     }
-  }, [isMobileMenuOpen, isSearchOpen])
+  }, [isMobileMenuOpen])
 
   // Determine if the current path is active
   const isActive = (path: string) => {
@@ -259,15 +255,17 @@ export function Header() {
 
             {/* Right side actions */}
             <div className="flex items-center space-x-2">
-              {/* Search button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gold/70 hover:text-gold hover:bg-gold/10"
-                onClick={() => setIsSearchOpen(true)}
-              >
-                <Search className="h-5 w-5" />
-              </Button>
+              {/* Cart button - show for everyone */}
+              <Link href={`${basePath}/cart`}>
+                <Button variant="ghost" size="icon" className="text-gold/70 hover:text-gold hover:bg-gold/10 relative">
+                  <ShoppingCart className="h-5 w-5" />
+                  {itemCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-gold text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      {itemCount}
+                    </span>
+                  )}
+                </Button>
+              </Link>
 
               {/* User dropdown or login/register buttons */}
               {user ? (
@@ -390,18 +388,6 @@ export function Header() {
                   </Button>
                 </div>
               )}
-
-              {/* Cart button - show for everyone */}
-              <Link href={`${basePath}/cart`}>
-                <Button variant="ghost" size="icon" className="text-gold/70 hover:text-gold hover:bg-gold/10 relative">
-                  <ShoppingCart className="h-5 w-5" />
-                  {itemCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-gold text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                      {itemCount}
-                    </span>
-                  )}
-                </Button>
-              </Link>
 
               {/* Mobile menu button */}
               <Button
@@ -671,13 +657,6 @@ export function Header() {
               )}
             </nav>
           </div>
-        </div>
-      )}
-
-      {/* Search overlay */}
-      {isSearchOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-start pt-20 overflow-y-auto">
-          <SearchBar onClose={() => setIsSearchOpen(false)} />
         </div>
       )}
 
