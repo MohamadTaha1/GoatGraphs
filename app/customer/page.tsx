@@ -278,9 +278,13 @@ export default function CustomerHome() {
                         {banner.title}
                       </h1>
                       <p className="text-lg md:text-xl text-white/80 mb-4 md:mb-8 max-w-xl">{banner.subtitle}</p>
-                      <Button asChild className="w-fit bg-gold hover:bg-gold-deep text-black">
-                        <Link href={banner.buttonLink || "#"}>{banner.buttonText}</Link>
-                      </Button>
+                      {/* Gold button removed */}
+                      <Link
+                        href={banner.buttonLink || "#"}
+                        className="text-gold hover:text-gold-deep underline text-lg"
+                      >
+                        {banner.buttonText}
+                      </Link>
                     </div>
                   </div>
                 </CarouselItem>
