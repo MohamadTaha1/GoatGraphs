@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -62,11 +62,18 @@ const occasions = [
 ]
 
 export default function VideoRequestPage() {
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+
+  // Check if user is guest and show auth modal
+  useEffect(() => {
+    if (!user || isGuest) {
+      setIsAuthModalOpen(true)
+    }
+  }, [user, isGuest])
 
   // Initialize the form
   const form = useForm<z.infer<typeof formSchema>>({
@@ -82,7 +89,7 @@ export default function VideoRequestPage() {
   // Handle form submission
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     // Check if user is logged in
-    if (!user) {
+    if (!user || isGuest) {
       setIsAuthModalOpen(true)
       return
     }
@@ -369,10 +376,11 @@ export default function VideoRequestPage() {
         </div>
       </div>
 
+      {/* Auth Modal */}
       <AuthRequiredModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        actionType="request a video"
+        actionType="video"
         returnUrl="/customer/videos/request"
       />
     </div>

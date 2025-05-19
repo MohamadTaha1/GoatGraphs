@@ -37,7 +37,7 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user, logout, isGuest } = useAuth()
   const { itemCount = 0 } = useCart()
 
   // Handle scroll event to change header appearance
@@ -278,7 +278,9 @@ export function Header() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-black border-gold/30">
-                    <div className="px-2 py-1.5 text-sm font-medium text-gold">{user.displayName || user.email}</div>
+                    <div className="px-2 py-1.5 text-sm font-medium text-gold">
+                      {isGuest ? "Guest User" : user.displayName || user.email}
+                    </div>
                     <DropdownMenuSeparator className="bg-gold/20" />
                     {user.role === "admin" || user.role === "superadmin" ? (
                       <>
@@ -351,13 +353,28 @@ export function Header() {
                       </>
                     )}
                     <DropdownMenuSeparator className="bg-gold/20" />
-                    <DropdownMenuItem
-                      onClick={() => logout()}
-                      className="flex items-center cursor-pointer text-gold/70 hover:text-gold hover:bg-gold/10"
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Logout
-                    </DropdownMenuItem>
+                    {/* Only show logout for non-guest users */}
+                    {!isGuest && (
+                      <DropdownMenuItem
+                        onClick={() => logout()}
+                        className="flex items-center cursor-pointer text-gold/70 hover:text-gold hover:bg-gold/10"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Logout
+                      </DropdownMenuItem>
+                    )}
+                    {/* Show sign in option for guest users */}
+                    {isGuest && (
+                      <DropdownMenuItem
+                        asChild
+                        className="flex items-center cursor-pointer text-gold/70 hover:text-gold hover:bg-gold/10"
+                      >
+                        <Link href="/login">
+                          <User className="mr-2 h-4 w-4" />
+                          Sign In
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -599,17 +616,33 @@ export function Header() {
               {user ? (
                 <>
                   <div className="border-t border-gold/20 pt-4 mt-4">
-                    <div className="px-3 py-2 text-sm font-medium text-gold">{user.displayName || user.email}</div>
-                    <button
-                      onClick={() => {
-                        logout()
-                        setIsMobileMenuOpen(false)
-                      }}
-                      className="flex items-center w-full px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
-                    >
-                      <LogOut className="mr-2 h-5 w-5" />
-                      Logout
-                    </button>
+                    <div className="px-3 py-2 text-sm font-medium text-gold">
+                      {isGuest ? "Guest User" : user.displayName || user.email}
+                    </div>
+                    {/* Only show logout for non-guest users */}
+                    {!isGuest && (
+                      <button
+                        onClick={() => {
+                          logout()
+                          setIsMobileMenuOpen(false)
+                        }}
+                        className="flex items-center w-full px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
+                      >
+                        <LogOut className="mr-2 h-5 w-5" />
+                        Logout
+                      </button>
+                    )}
+                    {/* Show sign in option for guest users */}
+                    {isGuest && (
+                      <Link
+                        href="/login"
+                        className="flex items-center w-full px-3 py-2 rounded-md text-base font-medium text-gold/70 hover:text-gold hover:bg-gold/10"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <User className="mr-2 h-5 w-5" />
+                        Sign In
+                      </Link>
+                    )}
                   </div>
                 </>
               ) : (

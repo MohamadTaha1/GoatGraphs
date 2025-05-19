@@ -15,6 +15,7 @@ import { Loader2, CreditCard, ShoppingBag, AlertCircle } from "lucide-react"
 import Image from "next/image"
 import { createProductOrder } from "@/lib/order-service"
 import { useToast } from "@/components/ui/use-toast"
+import AuthRequiredModal from "@/components/auth-required-modal"
 
 // Validation types
 type ValidationErrors = {
@@ -35,7 +36,7 @@ type ValidationErrors = {
 
 export default function CheckoutPage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const { items, clearCart } = useCart()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -43,6 +44,7 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -67,6 +69,10 @@ export default function CheckoutPage() {
       return
     }
 
+    if (isGuest) {
+      setShowAuthModal(true)
+    }
+
     if (items.length === 0) {
       router.push("/customer/shop")
       return
@@ -78,7 +84,7 @@ export default function CheckoutPage() {
       name: user.displayName || "",
       email: user.email || "",
     }))
-  }, [user, items, router])
+  }, [user, items, router, isGuest])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -865,6 +871,14 @@ export default function CheckoutPage() {
           </Card>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthRequiredModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        actionType="checkout"
+        returnUrl="/customer/checkout"
+      />
     </div>
   )
 }

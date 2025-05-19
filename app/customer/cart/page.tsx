@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -12,16 +12,23 @@ import { useCart } from "@/components/cart-provider"
 import { useAuth } from "@/hooks/use-auth"
 import { formatPrice } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
-import { AuthRequiredModal } from "@/components/auth-required-modal"
+import AuthRequiredModal from "@/components/auth-required-modal"
 
 export default function CartPage() {
   const router = useRouter()
   const { items, removeItem, updateQuantity, clearCart, subtotal } = useCart()
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const { toast } = useToast()
   const [promoCode, setPromoCode] = useState("")
   const [discount, setDiscount] = useState(0)
   const [showAuthModal, setShowAuthModal] = useState(false)
+
+  // Check if user is guest and show auth modal
+  useEffect(() => {
+    if (isGuest) {
+      setShowAuthModal(true)
+    }
+  }, [isGuest])
 
   // Calculate shipping (free over $100)
   const shipping = subtotal > 100 ? 0 : 9.99
@@ -67,7 +74,7 @@ export default function CartPage() {
 
   // Handle checkout
   const handleCheckout = () => {
-    if (!user) {
+    if (!user || isGuest) {
       setShowAuthModal(true)
       return
     }
@@ -283,8 +290,7 @@ export default function CartPage() {
       <AuthRequiredModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Sign in to continue"
-        description="Please sign in or create an account to proceed with checkout."
+        actionType="cart"
         returnUrl="/customer/cart"
       />
     </div>
