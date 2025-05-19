@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
-import { ArrowRight, Award, CheckCircle, ShoppingBag, Star, Video, Pencil } from "lucide-react"
+import { Award, CheckCircle, ShoppingBag, Star, Video, Pencil } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { CategoryShowcase } from "@/components/category-showcase"
 
@@ -279,9 +279,7 @@ export default function CustomerHome() {
                       </h1>
                       <p className="text-lg md:text-xl text-white/80 mb-4 md:mb-8 max-w-xl">{banner.subtitle}</p>
                       <Button asChild className="w-fit bg-gold hover:bg-gold-deep text-black">
-                        <Link href={banner.buttonLink || "#"}>
-                          {banner.buttonText} <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
+                        <Link href={banner.buttonLink || "#"}>{banner.buttonText}</Link>
                       </Button>
                     </div>
                   </div>
@@ -324,9 +322,7 @@ export default function CustomerHome() {
                 with a certificate of authenticity.
               </p>
               <Button asChild variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
-                <Link href="/customer/shop">
-                  Shop Now <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                <Link href="/customer/shop">Shop Now</Link>
               </Button>
             </CardContent>
           </Card>
@@ -345,9 +341,7 @@ export default function CustomerHome() {
                 player signing your item.
               </p>
               <Button asChild variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
-                <Link href="/customer/shop?tab=pre-order">
-                  Customize Now <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                <Link href="/customer/shop?tab=pre-order">Customize Now</Link>
               </Button>
             </CardContent>
           </Card>
@@ -366,9 +360,7 @@ export default function CustomerHome() {
                 occasions.
               </p>
               <Button asChild variant="outline" className="w-full border-gold/30 text-gold hover:bg-gold/10">
-                <Link href="/customer/videos">
-                  Request Video <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                <Link href="/customer/videos">Request Video</Link>
               </Button>
             </CardContent>
           </Card>
@@ -381,9 +373,7 @@ export default function CustomerHome() {
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-3xl font-display font-bold text-white">Featured Products</h2>
             <Button asChild variant="link" className="text-gold hover:text-gold-deep">
-              <Link href="/customer/shop">
-                View All <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+              <Link href="/customer/shop">View All</Link>
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -422,9 +412,7 @@ export default function CustomerHome() {
               <p className="text-white/70">Our most popular authenticated memorabilia</p>
             </div>
             <Button asChild variant="link" className="text-gold hover:text-gold-deep">
-              <Link href="/customer/shop">
-                Shop Now <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+              <Link href="/customer/shop">Shop Now</Link>
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
