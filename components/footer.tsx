@@ -7,7 +7,7 @@ export function Footer() {
       <div className="container py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-xl font-display font-bold text-gold mb-4">LEGENDARY SIGNATURES</h3>
+            <h3 className="text-xl font-display font-bold text-gold mb-4">Goat Graphs</h3>
             <p className="text-offwhite/80 mb-4 font-body">
               The premier destination for authentic signed football jerseys from the greatest players of all time.
             </p>
@@ -88,7 +88,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-gold/30 mt-8 pt-8 text-center text-offwhite/60 text-sm font-body">
-          <p>&copy; {new Date().getFullYear()} Legendary Signatures. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Goat Graphs. All rights reserved.</p>
         </div>
       </div>
     </footer>

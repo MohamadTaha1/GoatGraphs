@@ -20,7 +20,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Legendary Signatures | Authentic Signed Football Jerseys",
+  title: "Goat Graphs | Authentic Sports Memorabilia",
   description: "Premium collection of authenticated signed football jerseys from legendary players across all leagues.",
     generator: 'v0.dev'
 }

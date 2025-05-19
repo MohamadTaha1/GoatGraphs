@@ -100,7 +100,7 @@ export function Header() {
             {/* Logo */}
             <Link href={user ? (user.role === "admin" ? "/admin" : "/customer") : "/"} className="flex items-center">
               <span className="text-2xl font-display font-bold bg-gold-gradient bg-clip-text text-transparent">
-                Legendary Signatures
+                Goat Graphs
               </span>
             </Link>
 
@@ -423,7 +423,7 @@ export function Header() {
           <div className="container mx-auto px-4 py-3 flex justify-between items-center">
             <Link href="/" className="flex items-center">
               <span className="text-2xl font-display font-bold bg-gold-gradient bg-clip-text text-transparent">
-                Legendary Signatures
+                Goat Graphs
               </span>
             </Link>
             <Button
