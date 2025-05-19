@@ -11,11 +11,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Loader2, ArrowLeft, AlertCircle } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "@/lib/firebase"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface BannerData {
   title: string
@@ -160,6 +161,16 @@ export default function EditBannerPage({ params }: { params: { id: string } }) {
           <CardTitle>Edit Banner</CardTitle>
         </CardHeader>
         <CardContent>
+          <Alert className="mb-6 bg-blue-500/10 text-blue-500 border-blue-500/20">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Responsive Image Guidelines</AlertTitle>
+            <AlertDescription>
+              For best results across all devices, upload banner images with a 16:9 aspect ratio (e.g., 1920x1080px).
+              Make sure important text and elements are centered or positioned in the left third of the image, as mobile
+              devices will crop the sides.
+            </AlertDescription>
+          </Alert>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
@@ -215,7 +226,7 @@ export default function EditBannerPage({ params }: { params: { id: string } }) {
                 <div>
                   <Label htmlFor="image">Banner Image (Leave empty to keep current image)</Label>
                   <Input id="image" type="file" accept="image/*" onChange={handleImageChange} />
-                  <p className="text-sm text-gray-500 mt-1">Recommended size: 1200x400px (3:1 ratio)</p>
+                  <p className="text-sm text-gray-500 mt-1">Recommended size: 1920x1080px (16:9 ratio)</p>
                 </div>
 
                 {imagePreview && (
@@ -230,6 +241,14 @@ export default function EditBannerPage({ params }: { params: { id: string } }) {
                           e.currentTarget.src = "/placeholder.svg?height=160&width=320&text=Preview"
                         }}
                       />
+                    </div>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        <span className="font-medium">Desktop view:</span> Full width image will be displayed
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        <span className="font-medium">Mobile view:</span> Image will be cropped to fit smaller screens
+                      </p>
                     </div>
                   </div>
                 )}

@@ -259,36 +259,45 @@ export default function CustomerHome() {
     <div className="pt-24 pb-16">
       {/* Hero Banner Carousel */}
       {banners.length > 0 ? (
-        <Carousel className="mb-16">
-          <CarouselContent>
-            {banners.map((banner) => (
-              <CarouselItem key={banner.id}>
-                <div className="relative h-[500px] w-full rounded-lg overflow-hidden">
-                  <Image
-                    src={banner.imageUrl || "/placeholder.svg"}
-                    alt={banner.title}
-                    fill
-                    className="object-cover"
-                    priority
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent flex flex-col justify-center px-8 md:px-16">
-                    <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4 max-w-2xl">
-                      {banner.title}
-                    </h1>
-                    <p className="text-xl text-white/80 mb-8 max-w-xl">{banner.subtitle}</p>
-                    <Button asChild className="w-fit bg-gold hover:bg-gold-deep text-black">
-                      <Link href={banner.buttonLink || "#"}>
-                        {banner.buttonText} <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
+        <div className="relative mb-16">
+          <Carousel className="w-full">
+            <CarouselContent>
+              {banners.map((banner) => (
+                <CarouselItem key={banner.id}>
+                  <div className="relative h-[400px] md:h-[500px] w-full rounded-lg overflow-hidden">
+                    <Image
+                      src={banner.imageUrl || "/placeholder.svg"}
+                      alt={banner.title}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 1200px"
+                      priority
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent flex flex-col justify-center px-4 md:px-16">
+                      <h1 className="text-3xl md:text-5xl font-display font-bold text-white mb-2 md:mb-4 max-w-2xl">
+                        {banner.title}
+                      </h1>
+                      <p className="text-lg md:text-xl text-white/80 mb-4 md:mb-8 max-w-xl">{banner.subtitle}</p>
+                      <Button asChild className="w-fit bg-gold hover:bg-gold-deep text-black">
+                        <Link href={banner.buttonLink || "#"}>
+                          {banner.buttonText} <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-          <CarouselPrevious className="left-4" />
-          <CarouselNext className="right-4" />
-        </Carousel>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <div className="hidden md:block">
+              <CarouselPrevious className="left-4" />
+              <CarouselNext className="right-4" />
+            </div>
+            <div className="md:hidden">
+              <CarouselPrevious className="left-2 -bottom-12 top-auto bg-gold/20 hover:bg-gold/30 text-white" />
+              <CarouselNext className="right-2 -bottom-12 top-auto bg-gold/20 hover:bg-gold/30 text-white" />
+            </div>
+          </Carousel>
+        </div>
       ) : (
         <div className="container mb-16">
           <div className="bg-gray-800 rounded-lg p-8 text-center">
@@ -387,6 +396,7 @@ export default function CustomerHome() {
                       alt={product.name}
                       fill
                       className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                     />
                   </div>
                   <CardContent className="p-4">
@@ -427,6 +437,7 @@ export default function CustomerHome() {
                       alt={product.name}
                       fill
                       className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     />
                     <div className="absolute top-2 right-2 bg-gold text-black text-xs font-bold px-2 py-1 rounded">
                       Best Seller
@@ -486,6 +497,7 @@ export default function CustomerHome() {
                         alt={testimonial.name}
                         fill
                         className="object-cover"
+                        sizes="48px"
                       />
                     </div>
                     <h3 className="font-display font-medium text-white">{testimonial.name}</h3>

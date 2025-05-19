@@ -81,20 +81,23 @@ export default function BannerDisplay({ position, className = "" }: BannerDispla
 
   return (
     <div className={`relative w-full overflow-hidden rounded-lg ${className}`}>
-      <div className="relative w-full h-[400px]">
+      <div className="relative w-full h-[300px] md:h-[400px]">
         <Image
           src={banner.imageUrl || "/placeholder.svg?height=400&width=1200&text=Banner"}
           alt={banner.title}
           fill
           className="object-cover"
+          sizes="(max-width: 768px) 100vw, 1200px"
           priority
           onError={(e) => {
             e.currentTarget.src = "/placeholder.svg?height=400&width=1200&text=Banner"
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent flex flex-col justify-center p-8">
-          <h2 className="text-4xl font-display font-bold text-gold mb-2">{banner.title}</h2>
-          {banner.subtitle && <p className="text-xl text-offwhite max-w-md mb-6">{banner.subtitle}</p>}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent flex flex-col justify-center p-4 md:p-8">
+          <h2 className="text-2xl md:text-4xl font-display font-bold text-gold mb-2">{banner.title}</h2>
+          {banner.subtitle && (
+            <p className="text-lg md:text-xl text-offwhite max-w-md mb-4 md:mb-6">{banner.subtitle}</p>
+          )}
           {banner.linkUrl && (
             <Button asChild className="w-fit bg-gold-soft hover:bg-gold-deep text-jetblack">
               <Link href={banner.linkUrl}>Learn More</Link>
