@@ -12,10 +12,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Loader2, ArrowLeft, Info } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { getProduct, updateProduct } from "@/hooks/use-products"
 import Link from "next/link"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function EditProductPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -118,7 +119,6 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         description: formData.description,
         imageUrl: formData.imageUrl, // Keep the existing URL if no new image
         isPreOrder: formData.isPreOrder, // Include isPreOrder field
-        featured: !formData.isPreOrder, // Only in-stock products can be featured
       }
 
       const success = await updateProduct(params.id, productData, imageFile || undefined)
@@ -181,24 +181,51 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Product Type Selection (In-Stock or Pre-Order) */}
-            <div className="space-y-2">
-              <Label className="text-offwhite">Product Category</Label>
+            {/* Product Category Selection (In-Stock or Pre-Order) */}
+            <div className="p-4 border border-gold/30 rounded-lg bg-jetblack/50">
+              <div className="flex items-center mb-2">
+                <h3 className="text-lg font-display text-gold">Product Category</h3>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 ml-2 text-gold/70 hover:text-gold">
+                        <Info className="h-4 w-4" />
+                        <span className="sr-only">Product category information</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p>
+                        Choose where this product should appear in the shop:
+                        <br />
+                        <strong>In-Stock Products:</strong> Regular products available for immediate purchase.
+                        <br />
+                        <strong>Custom Pre-Orders:</strong> Products that appear in the pre-order section.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <RadioGroup
                 value={formData.isPreOrder ? "true" : "false"}
                 onValueChange={(value) => handleRadioChange("isPreOrder", value)}
-                className="flex flex-col space-y-1"
+                className="flex flex-col space-y-3"
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="false" id="in-stock" />
-                  <Label htmlFor="in-stock" className="text-offwhite">
-                    In-Stock Product (appears in "In-Stock Products" tab)
+                <div className="flex items-center space-x-2 p-3 rounded-md border border-gold/20 bg-charcoal/50 hover:bg-charcoal/80 transition-colors">
+                  <RadioGroupItem value="false" id="in-stock" className="text-gold" />
+                  <Label htmlFor="in-stock" className="text-offwhite font-medium cursor-pointer flex-1">
+                    In-Stock Product
+                    <span className="block text-sm text-offwhite/70 font-normal mt-1">
+                      Appears in the "In-Stock Products" tab in the shop
+                    </span>
                   </Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="true" id="pre-order" />
-                  <Label htmlFor="pre-order" className="text-offwhite">
-                    Custom Pre-Order (appears in "Custom Pre-Orders" tab)
+                <div className="flex items-center space-x-2 p-3 rounded-md border border-gold/20 bg-charcoal/50 hover:bg-charcoal/80 transition-colors">
+                  <RadioGroupItem value="true" id="pre-order" className="text-gold" />
+                  <Label htmlFor="pre-order" className="text-offwhite font-medium cursor-pointer flex-1">
+                    Custom Pre-Order
+                    <span className="block text-sm text-offwhite/70 font-normal mt-1">
+                      Appears in the "Custom Pre-Orders" tab in the shop
+                    </span>
                   </Label>
                 </div>
               </RadioGroup>

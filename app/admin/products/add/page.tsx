@@ -12,20 +12,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Loader2, ArrowLeft, AlertCircle, AlertTriangle, Info } from "lucide-react"
+import { Loader2, ArrowLeft, Info } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { addProduct } from "@/hooks/use-products"
 import Link from "next/link"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { collection, addDoc } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function AddProductPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [corsWarning, setCorsWarning] = useState<boolean>(false)
-  const [usedPlaceholder, setUsedPlaceholder] = useState<boolean>(false)
   const [formData, setFormData] = useState({
     title: "",
     type: "shirt",
@@ -37,7 +32,6 @@ export default function AddProductPage() {
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState<number>(0)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -59,17 +53,6 @@ export default function AddProductPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File Too Large",
-          description: "Image must be less than 5MB",
-          variant: "destructive",
-        })
-        return
-      }
-
       setImageFile(file)
 
       // Create preview
@@ -83,185 +66,45 @@ export default function AddProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
-    setCorsWarning(false)
-    setUsedPlaceholder(false)
-    setUploadProgress(0)
+    setIsSubmitting(true)
 
     if (!imageFile) {
       toast({
         title: "Image Required",
-        description: "Please select an image for the product.",
+        description: "Please upload a product image.",
         variant: "destructive",
       })
+      setIsSubmitting(false)
       return
     }
-
-    // Validate price
-    if (isNaN(Number.parseFloat(formData.price)) || Number.parseFloat(formData.price) <= 0) {
-      toast({
-        title: "Invalid Price",
-        description: "Please enter a valid price greater than zero.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-
-    // Start a fake progress indicator
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(progressInterval)
-          return prev
-        }
-        return prev + 5
-      })
-    }, 500)
 
     try {
-      console.log("Form submitted with data:", formData)
-
       const productData = {
-        title: formData.title.trim(),
+        title: formData.title,
         type: formData.type as "shirt" | "ball" | "photo",
-        signedBy: formData.signedBy.trim(),
+        signedBy: formData.signedBy,
         price: Number.parseFloat(formData.price),
         available: formData.available,
-        description: formData.description.trim(),
+        description: formData.description,
         isPreOrder: formData.isPreOrder, // Include isPreOrder field
-        // Add these fields to ensure compatibility with queries
-        featured: !formData.isPreOrder, // Only in-stock products can be featured
-        topSelling: false,
-        soldCount: 0,
       }
-
-      console.log("Calling addProduct with:", productData)
 
       const productId = await addProduct(productData, imageFile)
 
-      // Complete the progress bar
-      clearInterval(progressInterval)
-      setUploadProgress(100)
-
       if (productId) {
-        console.log("Product added successfully with ID:", productId)
-
-        // Check if the product was added with a placeholder image
-        if (productId && typeof window !== "undefined") {
-          // We'll check this in the next step after redirecting
-          toast({
-            title: "Product Added Successfully",
-            description: `The ${formData.isPreOrder ? "pre-order" : "in-stock"} product has been added to your inventory.`,
-          })
-
-          // Short delay before redirecting to ensure toast is seen
-          setTimeout(() => {
-            router.push("/admin/products")
-          }, 1500)
-        }
+        toast({
+          title: "Product Added",
+          description: "The product has been added successfully.",
+        })
+        router.push("/admin/products")
       } else {
-        throw new Error("Failed to add product - no product ID returned")
+        throw new Error("Failed to add product")
       }
     } catch (error) {
       console.error("Error adding product:", error)
-      clearInterval(progressInterval)
-
-      // Check if it's a timeout or CORS error
-      const errorMessage = error instanceof Error ? error.message : String(error)
-
-      if (errorMessage.toLowerCase().includes("timed out")) {
-        setError("Upload timed out. Your image may be too large or there might be network connectivity issues.")
-
-        // Offer to continue with a placeholder
-        setUsedPlaceholder(true)
-
-        toast({
-          title: "Upload Timed Out",
-          description: "Would you like to continue with a placeholder image instead?",
-          variant: "destructive",
-        })
-      } else if (errorMessage.toLowerCase().includes("cors")) {
-        setError(
-          "CORS Error: Firebase Storage is not configured to allow uploads from this domain. Please configure CORS settings in Firebase.",
-        )
-        setCorsWarning(true)
-
-        toast({
-          title: "CORS Error",
-          description: "Firebase Storage is not configured correctly. See instructions below.",
-          variant: "destructive",
-        })
-      } else {
-        setError(errorMessage)
-
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        })
-      }
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // Function to continue with a placeholder image
-  const continueWithPlaceholder = async () => {
-    if (!imageFile) return
-
-    setIsSubmitting(true)
-    setError(null)
-
-    try {
-      const productData = {
-        title: formData.title.trim(),
-        type: formData.type as "shirt" | "ball" | "photo",
-        signedBy: formData.signedBy.trim(),
-        price: Number.parseFloat(formData.price),
-        available: formData.available,
-        description: formData.description.trim(),
-        isPreOrder: formData.isPreOrder, // Include isPreOrder field
-        featured: !formData.isPreOrder, // Only in-stock products can be featured
-        topSelling: false,
-        soldCount: 0,
-      }
-
-      // Create a descriptive placeholder
-      const productTitle = encodeURIComponent(productData.title)
-      const playerName = encodeURIComponent(productData.signedBy)
-      const placeholderQuery = `${productTitle} signed by ${playerName}`
-
-      // Create a product with a placeholder image
-      const newProductData = {
-        ...productData,
-        imageUrl: `/placeholder.svg?height=400&width=400&query=${placeholderQuery}`,
-        imagePath: null,
-        createdAt: new Date().toISOString(),
-        usesPlaceholder: true,
-      }
-
-      // Add to Firestore directly
-      const db = getFirestoreInstance()
-      const docRef = await addDoc(collection(db, "products"), newProductData)
-
-      toast({
-        title: "Product Added with Placeholder",
-        description: `The ${formData.isPreOrder ? "pre-order" : "in-stock"} product has been added with a placeholder image.`,
-      })
-
-      // Short delay before redirecting
-      setTimeout(() => {
-        router.push("/admin/products")
-      }, 1500)
-    } catch (error) {
-      console.error("Error adding product with placeholder:", error)
-      setError(`Failed to add product: ${error instanceof Error ? error.message : String(error)}`)
-
       toast({
         title: "Error",
-        description: "Failed to add product with placeholder image.",
+        description: "Failed to add the product. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -287,75 +130,9 @@ export default function AddProductPage() {
           <h1 className="text-3xl font-display font-bold mb-2 bg-gold-gradient bg-clip-text text-transparent">
             Add New Product
           </h1>
-          <p className="text-offwhite/70 font-body">Create a new product in your inventory</p>
+          <p className="text-offwhite/70 font-body">Create a new product listing</p>
         </div>
       </div>
-
-      {corsWarning && (
-        <Alert variant="warning" className="bg-amber-900/20 border-amber-500 text-amber-200">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="text-amber-200">Firebase Storage CORS Issue</AlertTitle>
-          <AlertDescription className="text-amber-100/80">
-            <p>Your Firebase Storage is not configured to allow uploads from this domain.</p>
-            <p className="mt-2">To fix this, run the following commands:</p>
-            <pre className="mt-2 p-2 bg-black/30 rounded text-xs overflow-x-auto">
-              {`# Create a cors.json file with:
-[
-  {
-    "origin": ["${typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}", "http://localhost:3000"],
-    "method": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "x-goog-*"]
-  }
-]
-
-# Then run:
-firebase storage:cors set cors.json --project goatgraphs-shirts`}
-            </pre>
-            <div className="mt-4">
-              <Button
-                onClick={continueWithPlaceholder}
-                disabled={isSubmitting}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                Continue with Placeholder Image
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {usedPlaceholder && !corsWarning && (
-        <Alert variant="warning" className="bg-amber-900/20 border-amber-500 text-amber-200">
-          <Info className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="text-amber-200">Upload Timed Out</AlertTitle>
-          <AlertDescription className="text-amber-100/80">
-            <p>The image upload timed out. This could be due to:</p>
-            <ul className="list-disc pl-5 mt-2">
-              <li>Large image file size</li>
-              <li>Slow network connection</li>
-              <li>Firebase Storage configuration issues</li>
-            </ul>
-            <div className="mt-4">
-              <Button
-                onClick={continueWithPlaceholder}
-                disabled={isSubmitting}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                Continue with Placeholder Image
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {error && !corsWarning && !usedPlaceholder && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       <Card className="border-gold/30 bg-charcoal">
         <CardHeader className="pb-3">
@@ -363,24 +140,51 @@ firebase storage:cors set cors.json --project goatgraphs-shirts`}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Product Type Selection (In-Stock or Pre-Order) */}
-            <div className="space-y-2">
-              <Label className="text-offwhite">Product Category</Label>
+            {/* Product Category Selection (In-Stock or Pre-Order) */}
+            <div className="p-4 border border-gold/30 rounded-lg bg-jetblack/50">
+              <div className="flex items-center mb-2">
+                <h3 className="text-lg font-display text-gold">Product Category</h3>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 ml-2 text-gold/70 hover:text-gold">
+                        <Info className="h-4 w-4" />
+                        <span className="sr-only">Product category information</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p>
+                        Choose where this product should appear in the shop:
+                        <br />
+                        <strong>In-Stock Products:</strong> Regular products available for immediate purchase.
+                        <br />
+                        <strong>Custom Pre-Orders:</strong> Products that appear in the pre-order section.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <RadioGroup
                 value={formData.isPreOrder ? "true" : "false"}
                 onValueChange={(value) => handleRadioChange("isPreOrder", value)}
-                className="flex flex-col space-y-1"
+                className="flex flex-col space-y-3"
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="false" id="in-stock" />
-                  <Label htmlFor="in-stock" className="text-offwhite">
-                    In-Stock Product (appears in "In-Stock Products" tab)
+                <div className="flex items-center space-x-2 p-3 rounded-md border border-gold/20 bg-charcoal/50 hover:bg-charcoal/80 transition-colors">
+                  <RadioGroupItem value="false" id="in-stock" className="text-gold" />
+                  <Label htmlFor="in-stock" className="text-offwhite font-medium cursor-pointer flex-1">
+                    In-Stock Product
+                    <span className="block text-sm text-offwhite/70 font-normal mt-1">
+                      Appears in the "In-Stock Products" tab in the shop
+                    </span>
                   </Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="true" id="pre-order" />
-                  <Label htmlFor="pre-order" className="text-offwhite">
-                    Custom Pre-Order (appears in "Custom Pre-Orders" tab)
+                <div className="flex items-center space-x-2 p-3 rounded-md border border-gold/20 bg-charcoal/50 hover:bg-charcoal/80 transition-colors">
+                  <RadioGroupItem value="true" id="pre-order" className="text-gold" />
+                  <Label htmlFor="pre-order" className="text-offwhite font-medium cursor-pointer flex-1">
+                    Custom Pre-Order
+                    <span className="block text-sm text-offwhite/70 font-normal mt-1">
+                      Appears in the "Custom Pre-Orders" tab in the shop
+                    </span>
                   </Label>
                 </div>
               </RadioGroup>
@@ -448,7 +252,7 @@ firebase storage:cors set cors.json --project goatgraphs-shirts`}
                     id="price"
                     name="price"
                     type="number"
-                    min="0.01"
+                    min="0"
                     step="0.01"
                     value={formData.price}
                     onChange={handleInputChange}
@@ -542,35 +346,22 @@ firebase storage:cors set cors.json --project goatgraphs-shirts`}
               </div>
             </div>
 
-            {isSubmitting && (
-              <div className="w-full bg-jetblack rounded-full h-2.5 mb-4">
-                <div
-                  className="bg-gold h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-                <p className="text-xs text-offwhite/70 mt-1 text-center">
-                  {uploadProgress < 100 ? "Uploading..." : "Upload complete!"}
-                </p>
-              </div>
-            )}
-
             <div className="flex justify-end gap-4">
               <Button
                 type="button"
                 variant="outline"
                 className="border-gold/30 text-gold hover:bg-gold/10"
                 onClick={() => router.push("/admin/products")}
-                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button type="submit" className="bg-gold-soft hover:bg-gold-deep text-jetblack" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...
                   </>
                 ) : (
-                  "Save Product"
+                  "Create Product"
                 )}
               </Button>
             </div>
