@@ -12,8 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
-import { getFirestoreInstance } from "@/lib/firebase/firestore"
-import { collection, addDoc, Timestamp } from "firebase/firestore"
+import { addUser } from "@/hooks/use-users"
 
 export default function AddCustomerPage() {
   const router = useRouter()
@@ -63,30 +62,22 @@ export default function AddCustomerPage() {
     setIsSubmitting(true)
 
     try {
-      const db = getFirestoreInstance()
-      if (!db) {
-        throw new Error("Firestore instance is null")
-      }
-
       // Create user document
-      const userData = {
+      const userId = await addUser({
         ...formData,
-        createdAt: Timestamp.now(),
-        lastLogin: Timestamp.now(),
         status: "active",
-        wishlist: [],
-        orderCount: 0,
-        totalSpent: 0,
-      }
+      })
 
-      const docRef = await addDoc(collection(db, "users"), userData)
+      if (!userId) {
+        throw new Error("Failed to add customer")
+      }
 
       toast({
         title: "Customer Added",
         description: "The customer has been added successfully.",
       })
 
-      router.push(`/admin/customers/${docRef.id}`)
+      router.push(`/admin/customers/${userId}`)
     } catch (error) {
       console.error("Error adding customer:", error)
       toast({

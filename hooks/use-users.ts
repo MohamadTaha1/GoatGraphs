@@ -9,7 +9,7 @@ import {
   query,
   where,
   limit,
-  Timestamp,
+  type Timestamp,
   orderBy,
   addDoc,
   updateDoc,
@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
 import { uploadFile } from "@/lib/firebase/storage"
+import { convertTimestampToDate } from "@/lib/firebase-helpers"
 
 export interface User {
   id: string
@@ -35,8 +36,8 @@ export interface User {
     country: string
   }
   wishlist?: string[] // Array of product IDs
-  createdAt: Timestamp | string
-  lastLogin: Timestamp | string
+  createdAt: Timestamp | string | Date
+  lastLogin: Timestamp | string | Date
   orders?: string[] // Array of order IDs
   newsletter: boolean
   status?: "active" | "inactive"
@@ -49,12 +50,21 @@ export function useUsers() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  // Function to refresh the users data
+  const refreshUsers = () => {
+    setRefreshTrigger((prev) => prev + 1)
+  }
 
   useEffect(() => {
     async function fetchUsers() {
       try {
         // Skip if we're not in the browser
         if (typeof window === "undefined") return
+
+        setLoading(true)
+        setError(null)
 
         let db
         try {
@@ -80,7 +90,7 @@ export function useUsers() {
             collection(db, "users"),
             where("role", "==", "customer"),
             orderBy("createdAt", "desc"),
-            limit(20),
+            limit(50),
           )
 
           let usersSnapshot = await getDocs(usersQuery)
@@ -92,7 +102,7 @@ export function useUsers() {
           // If no users with role=customer, try fetching all users
           if (usersData.length === 0) {
             console.log("No users with role=customer found, fetching all users...")
-            usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(20))
+            usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(50))
             usersSnapshot = await getDocs(usersQuery)
             usersData = usersSnapshot.docs.map((doc) => ({
               id: doc.id,
@@ -110,22 +120,22 @@ export function useUsers() {
                   const ordersSnapshot = await getDocs(ordersQuery)
 
                   const orderCount = ordersSnapshot.size
-                  const totalSpent = ordersSnapshot.docs.reduce(
-                    (sum, orderDoc) => sum + (orderDoc.data().total || 0),
-                    0,
-                  )
+                  const totalSpent = ordersSnapshot.docs.reduce((sum, orderDoc) => {
+                    const orderData = orderDoc.data()
+                    return sum + (orderData.total || 0)
+                  }, 0)
+
+                  // Convert timestamps to dates for comparison
+                  const lastLogin = convertTimestampToDate(user.lastLogin)
+                  const thirtyDaysAgo = new Date()
+                  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
                   return {
                     ...user,
                     orderCount,
                     totalSpent,
                     // Determine status based on last login
-                    status: user.lastLogin
-                      ? new Date(user.lastLogin instanceof Timestamp ? user.lastLogin.toDate() : user.lastLogin) >
-                        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-                        ? "active"
-                        : "inactive"
-                      : "inactive",
+                    status: lastLogin && lastLogin > thirtyDaysAgo ? "active" : "inactive",
                   }
                 } catch (error) {
                   console.error("Error fetching user orders:", error)
@@ -154,9 +164,9 @@ export function useUsers() {
     }
 
     fetchUsers()
-  }, [])
+  }, [refreshTrigger])
 
-  return { users, loading, error, setUsers }
+  return { users, loading, error, setUsers, refreshUsers }
 }
 
 // Function to get a single user by ID
@@ -195,18 +205,21 @@ export async function getUser(id: string): Promise<User | null> {
         const ordersSnapshot = await getDocs(ordersQuery)
 
         const orderCount = ordersSnapshot.size
-        const totalSpent = ordersSnapshot.docs.reduce((sum, orderDoc) => sum + (orderDoc.data().total || 0), 0)
+        const totalSpent = ordersSnapshot.docs.reduce((sum, orderDoc) => {
+          const orderData = orderDoc.data()
+          return sum + (orderData.total || 0)
+        }, 0)
+
+        // Convert timestamps to dates for comparison
+        const lastLogin = convertTimestampToDate(userData.lastLogin)
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
         return {
           ...userData,
           orderCount,
           totalSpent,
-          status: userData.lastLogin
-            ? new Date(userData.lastLogin instanceof Timestamp ? userData.lastLogin.toDate() : userData.lastLogin) >
-              new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-              ? "active"
-              : "inactive"
-            : "inactive",
+          status: lastLogin && lastLogin > thirtyDaysAgo ? "active" : "inactive",
         }
       } catch (error) {
         console.error("Error fetching user orders:", error)
@@ -244,11 +257,16 @@ export async function addUser(userData: Omit<User, "id" | "createdAt">, profileI
 
     // If profile image is provided, upload it to Firebase Storage
     if (profileImage) {
-      const timestamp = Date.now()
-      const filename = `${timestamp}_${profileImage.name.replace(/\s+/g, "_")}`
-      const imagePath = `users/${filename}`
+      try {
+        const timestamp = Date.now()
+        const filename = `${timestamp}_${profileImage.name.replace(/\s+/g, "_")}`
+        const imagePath = `users/${filename}`
 
-      photoURL = await uploadFile(profileImage, imagePath)
+        photoURL = await uploadFile(profileImage, imagePath)
+      } catch (uploadError) {
+        console.error("Error uploading profile image:", uploadError)
+        // Continue with user creation even if image upload fails
+      }
     }
 
     const newUserData = {
@@ -288,12 +306,17 @@ export async function updateUser(id: string, userData: Partial<User>, profileIma
 
     // If profile image is provided, upload it to Firebase Storage
     if (profileImage) {
-      const timestamp = Date.now()
-      const filename = `${timestamp}_${profileImage.name.replace(/\s+/g, "_")}`
-      const imagePath = `users/${filename}`
+      try {
+        const timestamp = Date.now()
+        const filename = `${timestamp}_${profileImage.name.replace(/\s+/g, "_")}`
+        const imagePath = `users/${filename}`
 
-      const photoURL = await uploadFile(profileImage, imagePath)
-      updateData.photoURL = photoURL
+        const photoURL = await uploadFile(profileImage, imagePath)
+        updateData.photoURL = photoURL
+      } catch (uploadError) {
+        console.error("Error uploading profile image:", uploadError)
+        // Continue with user update even if image upload fails
+      }
     }
 
     updateData.updatedAt = serverTimestamp()

@@ -66,3 +66,12 @@ export function extractDocData(doc: any): any {
     return { id: doc.id || null }
   }
 }
+
+/**
+ * Format price with proper decimal places
+ * @param price Price to format
+ * @returns Formatted price string
+ */
+export function formatPrice(price: number): string {
+  return price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+}
