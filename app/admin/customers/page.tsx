@@ -28,10 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useUsers } from "@/hooks/use-users"
+import { useUsers, convertTimestampToDate } from "@/hooks/use-users"
 import { formatPrice } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
-import { convertTimestampToDate } from "@/lib/firebase-helpers"
 
 export default function CustomersPage() {
   const { users, loading, error, refreshUsers } = useUsers()

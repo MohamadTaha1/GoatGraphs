@@ -7,10 +7,8 @@ import {
   getDoc,
   doc,
   query,
-  where,
   limit,
   type Timestamp,
-  orderBy,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -18,7 +16,6 @@ import {
 } from "firebase/firestore"
 import { getFirestoreInstance } from "@/lib/firebase/firestore"
 import { uploadFile } from "@/lib/firebase/storage"
-import { convertTimestampToDate } from "@/lib/firebase-helpers"
 
 export interface User {
   id: string
@@ -43,6 +40,42 @@ export interface User {
   status?: "active" | "inactive"
   totalSpent?: number
   orderCount?: number
+}
+
+// Helper function to convert Firebase timestamp to Date
+export function convertTimestampToDate(timestamp: any): Date | null {
+  if (!timestamp) return null
+
+  // Handle Firestore Timestamp
+  if (timestamp && typeof timestamp === "object" && timestamp.toDate) {
+    return timestamp.toDate()
+  }
+
+  // Handle string date
+  if (timestamp && (typeof timestamp === "string" || timestamp instanceof Date)) {
+    try {
+      return new Date(timestamp)
+    } catch (e) {
+      console.error("Error converting timestamp to date:", e)
+      return null
+    }
+  }
+
+  return null
+}
+
+// Helper function to compare dates for sorting
+function compareDates(a: any, b: any, isDescending = true): number {
+  const dateA = convertTimestampToDate(a)
+  const dateB = convertTimestampToDate(b)
+
+  // Handle null dates
+  if (!dateA && !dateB) return 0
+  if (!dateA) return isDescending ? 1 : -1
+  if (!dateB) return isDescending ? -1 : 1
+
+  // Compare dates
+  return isDescending ? dateB.getTime() - dateA.getTime() : dateA.getTime() - dateB.getTime()
 }
 
 // Hook to fetch users
@@ -84,43 +117,42 @@ export function useUsers() {
         }
 
         try {
-          // Try to fetch users with role=customer
-          console.log("Fetching users with role=customer...")
-          let usersQuery = query(
+          // Fetch all users without filtering or ordering (to avoid index requirements)
+          console.log("Fetching all users...")
+          const usersQuery = query(
             collection(db, "users"),
-            where("role", "==", "customer"),
-            orderBy("createdAt", "desc"),
-            limit(50),
+            limit(100), // Increased limit to ensure we get enough customers
           )
 
-          let usersSnapshot = await getDocs(usersQuery)
-          let usersData = usersSnapshot.docs.map((doc) => ({
+          const usersSnapshot = await getDocs(usersQuery)
+          const usersData = usersSnapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           })) as User[]
 
-          // If no users with role=customer, try fetching all users
-          if (usersData.length === 0) {
-            console.log("No users with role=customer found, fetching all users...")
-            usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(50))
-            usersSnapshot = await getDocs(usersQuery)
-            usersData = usersSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as User[]
-          }
+          // Filter customers in JavaScript
+          const customerUsers = usersData.filter((user) => user.role === "customer")
 
-          if (usersData.length > 0) {
+          // Sort by createdAt in descending order in JavaScript
+          customerUsers.sort((a, b) => compareDates(a.createdAt, b.createdAt, true))
+
+          if (customerUsers.length > 0) {
             // Fetch additional data like order count and total spent
             const enhancedUsers = await Promise.all(
-              usersData.map(async (user) => {
+              customerUsers.map(async (user) => {
                 // Get order count and total spent
                 try {
-                  const ordersQuery = query(collection(db, "orders"), where("userId", "==", user.id))
+                  const ordersQuery = query(collection(db, "orders"))
                   const ordersSnapshot = await getDocs(ordersQuery)
 
-                  const orderCount = ordersSnapshot.size
-                  const totalSpent = ordersSnapshot.docs.reduce((sum, orderDoc) => {
+                  // Filter orders for this user
+                  const userOrders = ordersSnapshot.docs.filter((doc) => {
+                    const orderData = doc.data()
+                    return orderData.userId === user.id
+                  })
+
+                  const orderCount = userOrders.length
+                  const totalSpent = userOrders.reduce((sum, orderDoc) => {
                     const orderData = orderDoc.data()
                     return sum + (orderData.total || 0)
                   }, 0)
@@ -146,7 +178,7 @@ export function useUsers() {
 
             setUsers(enhancedUsers)
           } else {
-            console.log("No users found in Firestore")
+            console.log("No customer users found in Firestore")
             setUsers([])
           }
         } catch (queryError) {
@@ -201,11 +233,17 @@ export async function getUser(id: string): Promise<User | null> {
 
       // Get order count and total spent
       try {
-        const ordersQuery = query(collection(db, "orders"), where("userId", "==", userData.id))
+        const ordersQuery = query(collection(db, "orders"))
         const ordersSnapshot = await getDocs(ordersQuery)
 
-        const orderCount = ordersSnapshot.size
-        const totalSpent = ordersSnapshot.docs.reduce((sum, orderDoc) => {
+        // Filter orders for this user
+        const userOrders = ordersSnapshot.docs.filter((doc) => {
+          const orderData = doc.data()
+          return orderData.userId === userData.id
+        })
+
+        const orderCount = userOrders.length
+        const totalSpent = userOrders.reduce((sum, orderDoc) => {
           const orderData = orderDoc.data()
           return sum + (orderData.total || 0)
         }, 0)
