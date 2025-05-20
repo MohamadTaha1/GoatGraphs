@@ -11,13 +11,14 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Loader2, ArrowLeft, AlertCircle, AlertTriangle, Info } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { addProduct } from "@/hooks/use-products"
 import Link from "next/link"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { collection, addDoc } from "firebase/firestore"
-import { getFirestoreInstance } from "@/lib/firebase/firestore" // Fixed import path
+import { getFirestoreInstance } from "@/lib/firebase/firestore"
 
 export default function AddProductPage() {
   const router = useRouter()
@@ -32,6 +33,7 @@ export default function AddProductPage() {
     price: "",
     available: true,
     description: "",
+    isPreOrder: false, // Added isPreOrder field with default false
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -48,6 +50,10 @@ export default function AddProductPage() {
 
   const handleSwitchChange = (name: string, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }))
+  }
+
+  const handleRadioChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value === "true" }))
   }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,8 +130,9 @@ export default function AddProductPage() {
         price: Number.parseFloat(formData.price),
         available: formData.available,
         description: formData.description.trim(),
+        isPreOrder: formData.isPreOrder, // Include isPreOrder field
         // Add these fields to ensure compatibility with queries
-        featured: true, // Set as featured by default
+        featured: !formData.isPreOrder, // Only in-stock products can be featured
         topSelling: false,
         soldCount: 0,
       }
@@ -146,7 +153,7 @@ export default function AddProductPage() {
           // We'll check this in the next step after redirecting
           toast({
             title: "Product Added Successfully",
-            description: "The product has been added to your inventory.",
+            description: `The ${formData.isPreOrder ? "pre-order" : "in-stock"} product has been added to your inventory.`,
           })
 
           // Short delay before redirecting to ensure toast is seen
@@ -215,7 +222,8 @@ export default function AddProductPage() {
         price: Number.parseFloat(formData.price),
         available: formData.available,
         description: formData.description.trim(),
-        featured: true,
+        isPreOrder: formData.isPreOrder, // Include isPreOrder field
+        featured: !formData.isPreOrder, // Only in-stock products can be featured
         topSelling: false,
         soldCount: 0,
       }
@@ -240,7 +248,7 @@ export default function AddProductPage() {
 
       toast({
         title: "Product Added with Placeholder",
-        description: "The product has been added with a placeholder image.",
+        description: `The ${formData.isPreOrder ? "pre-order" : "in-stock"} product has been added with a placeholder image.`,
       })
 
       // Short delay before redirecting
@@ -355,6 +363,29 @@ firebase storage:cors set cors.json --project goatgraphs-shirts`}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Product Type Selection (In-Stock or Pre-Order) */}
+            <div className="space-y-2">
+              <Label className="text-offwhite">Product Category</Label>
+              <RadioGroup
+                value={formData.isPreOrder ? "true" : "false"}
+                onValueChange={(value) => handleRadioChange("isPreOrder", value)}
+                className="flex flex-col space-y-1"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="false" id="in-stock" />
+                  <Label htmlFor="in-stock" className="text-offwhite">
+                    In-Stock Product (appears in "In-Stock Products" tab)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="true" id="pre-order" />
+                  <Label htmlFor="pre-order" className="text-offwhite">
+                    Custom Pre-Order (appears in "Custom Pre-Orders" tab)
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -434,7 +465,7 @@ firebase storage:cors set cors.json --project goatgraphs-shirts`}
                     onCheckedChange={(checked) => handleSwitchChange("available", checked)}
                   />
                   <Label htmlFor="available" className="text-offwhite">
-                    Available in stock
+                    {formData.isPreOrder ? "Available for pre-order" : "Available in stock"}
                   </Label>
                 </div>
               </div>
@@ -499,7 +530,11 @@ firebase storage:cors set cors.json --project goatgraphs-shirts`}
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
-                    placeholder="Authentic signed shirt from 2022 World Cup season."
+                    placeholder={
+                      formData.isPreOrder
+                        ? "Custom pre-order jersey with authentic signature. Delivery in 3-4 weeks."
+                        : "Authentic signed shirt from 2022 World Cup season."
+                    }
                     rows={5}
                     className="border-gold/30 bg-jetblack text-offwhite resize-none"
                   />

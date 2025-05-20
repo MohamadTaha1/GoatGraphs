@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { getProduct, updateProduct } from "@/hooks/use-products"
@@ -28,6 +29,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     available: true,
     description: "",
     imageUrl: "",
+    isPreOrder: false, // Added isPreOrder field with default false
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -45,6 +47,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
             available: product.available,
             description: product.description,
             imageUrl: product.imageUrl,
+            isPreOrder: product.isPreOrder || false, // Handle existing products that might not have this field
           })
           setImagePreview(product.imageUrl)
         } else {
@@ -83,6 +86,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     setFormData((prev) => ({ ...prev, [name]: checked }))
   }
 
+  const handleRadioChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value === "true" }))
+  }
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
@@ -110,6 +117,8 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         available: formData.available,
         description: formData.description,
         imageUrl: formData.imageUrl, // Keep the existing URL if no new image
+        isPreOrder: formData.isPreOrder, // Include isPreOrder field
+        featured: !formData.isPreOrder, // Only in-stock products can be featured
       }
 
       const success = await updateProduct(params.id, productData, imageFile || undefined)
@@ -172,6 +181,29 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Product Type Selection (In-Stock or Pre-Order) */}
+            <div className="space-y-2">
+              <Label className="text-offwhite">Product Category</Label>
+              <RadioGroup
+                value={formData.isPreOrder ? "true" : "false"}
+                onValueChange={(value) => handleRadioChange("isPreOrder", value)}
+                className="flex flex-col space-y-1"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="false" id="in-stock" />
+                  <Label htmlFor="in-stock" className="text-offwhite">
+                    In-Stock Product (appears in "In-Stock Products" tab)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="true" id="pre-order" />
+                  <Label htmlFor="pre-order" className="text-offwhite">
+                    Custom Pre-Order (appears in "Custom Pre-Orders" tab)
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -251,7 +283,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     onCheckedChange={(checked) => handleSwitchChange("available", checked)}
                   />
                   <Label htmlFor="available" className="text-offwhite">
-                    Available in stock
+                    {formData.isPreOrder ? "Available for pre-order" : "Available in stock"}
                   </Label>
                 </div>
               </div>
@@ -321,7 +353,11 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
-                    placeholder="Authentic signed shirt from 2022 World Cup season."
+                    placeholder={
+                      formData.isPreOrder
+                        ? "Custom pre-order jersey with authentic signature. Delivery in 3-4 weeks."
+                        : "Authentic signed shirt from 2022 World Cup season."
+                    }
                     rows={5}
                     className="border-gold/30 bg-jetblack text-offwhite resize-none"
                   />

@@ -30,6 +30,7 @@ export type Product = {
   createdAt: any
   featured?: boolean
   soldCount?: number
+  isPreOrder?: boolean // Added isPreOrder field
 }
 
 export function useProducts() {
