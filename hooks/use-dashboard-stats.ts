@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { collection, query, getDocs, where, Timestamp, orderBy } from "firebase/firestore"
+import { collection, query, getDocs, where } from "firebase/firestore"
 import { getFirestoreInstance } from "@/lib/firebase"
 
 export interface DashboardStats {
@@ -44,10 +44,8 @@ export function useDashboardStats() {
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(now.getDate() - 30)
 
-        const thirtyDaysAgoTimestamp = Timestamp.fromDate(thirtyDaysAgo)
-
-        // Fetch orders
-        const ordersQuery = query(collection(db, "orders"), orderBy("createdAt", "desc"))
+        // Fetch orders - no composite index needed for a simple collection query
+        const ordersQuery = query(collection(db, "orders"))
         const ordersSnapshot = await getDocs(ordersQuery)
 
         let totalRevenue = 0
@@ -103,32 +101,38 @@ export function useDashboardStats() {
             })
           }
 
-          // Add to recent orders if it's one of the 5 most recent
-          if (recentOrdersData.length < 5) {
-            let orderDate = new Date()
-            if (orderData.createdAt) {
-              orderDate = orderData.createdAt.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt)
-            }
-
-            recentOrdersData.push({
-              id: doc.id,
-              customer: orderData.customerInfo?.name || "Unknown Customer",
-              date: orderDate.toISOString().split("T")[0],
-              amount: orderTotal,
-              status: orderData.orderStatus || "processing",
-              items: (orderData.items || []).length,
-            })
-          }
+          // Add to recent orders
+          recentOrdersData.push({
+            id: doc.id,
+            customer: orderData.customerInfo?.name || "Unknown Customer",
+            date: orderData.createdAt
+              ? (orderData.createdAt.toDate?.() || new Date(orderData.createdAt)).toISOString().split("T")[0]
+              : "Unknown Date",
+            amount: orderTotal,
+            status: orderData.orderStatus || "processing",
+            items: (orderData.items || []).length,
+          })
         })
 
-        // Fetch new customers in the last 30 days
-        const newCustomersQuery = query(
-          collection(db, "users"),
-          where("createdAt", ">=", thirtyDaysAgoTimestamp),
-          where("role", "==", "customer"),
-        )
-        const newCustomersSnapshot = await getDocs(newCustomersQuery)
-        const newCustomersCount = newCustomersSnapshot.size
+        // Sort recent orders by date (newest first) and take only the 5 most recent
+        recentOrdersData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        const recentOrders = recentOrdersData.slice(0, 5)
+
+        // Fetch all customers - avoid composite index by querying only by role
+        const customersQuery = query(collection(db, "users"), where("role", "==", "customer"))
+        const customersSnapshot = await getDocs(customersQuery)
+
+        // Filter new customers in JavaScript instead of in the query
+        let newCustomersCount = 0
+        customersSnapshot.forEach((doc) => {
+          const userData = doc.data()
+          if (userData.createdAt) {
+            const createdAt = userData.createdAt.toDate ? userData.createdAt.toDate() : new Date(userData.createdAt)
+            if (createdAt > thirtyDaysAgo) {
+              newCustomersCount++
+            }
+          }
+        })
 
         // Fetch inventory value
         const productsQuery = query(collection(db, "products"))
@@ -183,7 +187,7 @@ export function useDashboardStats() {
           newCustomers: newCustomersCount,
           totalOrders: monthlyOrders,
           inventoryValue,
-          recentOrders: recentOrdersData,
+          recentOrders,
           salesData,
           topProducts: topProductsData,
           orderStatusData,
