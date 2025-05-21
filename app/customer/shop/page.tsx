@@ -22,7 +22,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Textarea } from "@/components/ui/textarea"
-import Image from "next/image"
 
 // Form schema for pre-order
 const preOrderSchema = z.object({
@@ -56,33 +55,16 @@ export default function ShopPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedJersey, setSelectedJersey] = useState(null)
 
-  // Pre-defined jersey options for pre-order
-  const jerseyOptions = [
-    {
-      id: "jersey-1",
-      title: "Manchester United Home Kit 2023/24",
-      player: "Marcus Rashford",
-      image: "/placeholder-rli5n.png",
-      price: 299.99,
-      description: "Official Manchester United home jersey signed by Marcus Rashford.",
-    },
-    {
-      id: "jersey-2",
-      title: "Real Madrid Home Kit 2023/24",
-      player: "Jude Bellingham",
-      image: "/placeholder-nbo7j.png",
-      price: 349.99,
-      description: "Official Real Madrid home jersey signed by Jude Bellingham.",
-    },
-    {
-      id: "jersey-3",
-      title: "Barcelona Home Kit 2023/24",
-      player: "Robert Lewandowski",
-      image: "/placeholder-bz0yz.png",
-      price: 329.99,
-      description: "Official Barcelona home jersey signed by Robert Lewandowski.",
-    },
-  ]
+  // Separate products into in-stock and pre-order
+  const inStockProducts = products.filter((product) => !product.isPreOrder)
+  const preOrderProducts = products.filter((product) => product.isPreOrder)
+
+  // Set initial jersey selection when pre-order products load
+  useEffect(() => {
+    if (preOrderProducts.length > 0 && !selectedJersey) {
+      setSelectedJersey(preOrderProducts[0])
+    }
+  }, [preOrderProducts, selectedJersey])
 
   // Initialize form for pre-order
   const form = useForm<PreOrderFormValues>({
@@ -94,17 +76,10 @@ export default function ShopPage() {
     },
   })
 
-  // Set initial jersey selection
-  useEffect(() => {
-    if (jerseyOptions.length > 0 && !selectedJersey) {
-      setSelectedJersey(jerseyOptions[0])
-    }
-  }, [selectedJersey])
-
   // Calculate price based on options
   const calculatePrice = () => {
     if (!selectedJersey) return 0
-    let price = selectedJersey.price
+    let price = selectedJersey.price || 0
     if (form.watch("vipFrame")) price += 150.0
     return price
   }
@@ -136,13 +111,13 @@ export default function ShopPage() {
       // Create a product-like object for the cart
       const preOrderItem = {
         productId: `preorder-${selectedJersey.id}-${Date.now()}`,
-        name: `${selectedJersey.title} - Personalized`,
+        name: `${selectedJersey.title || "Custom Jersey"} - Personalized`,
         price: finalPrice,
-        image: selectedJersey.image,
+        image: selectedJersey.imageUrl || "/placeholder.svg?height=256&width=256",
         type: "preorder",
         details: {
-          jersey: selectedJersey.title,
-          player: selectedJersey.player,
+          jersey: selectedJersey.title || "Custom Jersey",
+          player: selectedJersey.signedBy || "Selected Player",
           personalization: data.personalization,
           vipFrame: data.vipFrame,
           specialInstructions: data.specialInstructions,
@@ -200,10 +175,6 @@ export default function ShopPage() {
     setPriceRange(value)
   }
 
-  // Separate products into in-stock and pre-order
-  const inStockProducts = products.filter((product) => !product.isPreOrder)
-  const preOrderProducts = products.filter((product) => product.isPreOrder)
-
   // Filter products based on search, type, and price
   const filterProducts = (productList) => {
     return productList.filter((product) => {
@@ -238,7 +209,6 @@ export default function ShopPage() {
 
   // Filter and sort products
   const filteredInStockProducts = filterProducts(inStockProducts)
-  const filteredPreOrderProducts = filterProducts(preOrderProducts)
 
   // Sort products
   const sortProducts = (productList) => {
@@ -260,7 +230,7 @@ export default function ShopPage() {
   }
 
   const sortedInStockProducts = sortProducts(filteredInStockProducts)
-  const sortedPreOrderProducts = sortProducts(filteredPreOrderProducts)
+  const sortedPreOrderProducts = sortProducts(preOrderProducts)
 
   // Handle add to cart
   const handleAddToCart = (product) => {
@@ -383,6 +353,76 @@ export default function ShopPage() {
                   {product.available ? "Add to Cart" : "Sold Out"}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  // Render jersey selection cards
+  const renderJerseySelection = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-gold" />
+          <span className="ml-2 text-offwhite">Loading jerseys...</span>
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-10 bg-red-900/20 rounded-lg border border-red-900/50 p-4">
+          <h3 className="text-lg font-display font-bold text-red-500 mb-2">Error loading jerseys</h3>
+          <p className="text-offwhite/70 font-body mb-4">There was an error loading the jerseys. Please try again.</p>
+          <Button variant="outline" className="border-gold text-gold hover:bg-gold/10" onClick={() => router.refresh()}>
+            Retry
+          </Button>
+        </div>
+      )
+    }
+
+    if (preOrderProducts.length === 0) {
+      return (
+        <div className="text-center py-10">
+          <h3 className="text-lg font-display font-bold text-gold mb-2">No jerseys available</h3>
+          <p className="text-offwhite/70 font-body mb-4">
+            There are currently no jerseys available for pre-order. Please check back later.
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {preOrderProducts.map((product) => (
+          <Card
+            key={product.id}
+            className={`cursor-pointer transition-all overflow-hidden ${
+              selectedJersey && selectedJersey.id === product.id
+                ? "border-gold bg-gold/10"
+                : "border-gold/30 bg-charcoal hover:border-gold/50"
+            }`}
+            onClick={() => setSelectedJersey(product)}
+          >
+            <div className="relative h-48">
+              <OptimizedImage
+                src={product.imageUrl || "/placeholder.svg?height=192&width=192"}
+                alt={product.title || "Jersey"}
+                fill
+                className="object-contain"
+              />
+              {selectedJersey && selectedJersey.id === product.id && (
+                <div className="absolute top-2 right-2 bg-gold rounded-full p-1">
+                  <Checkbox checked={true} className="h-4 w-4 text-black" />
+                </div>
+              )}
+            </div>
+            <CardContent className="p-4">
+              <h4 className="font-display font-bold text-offwhite">{product.title || "Custom Jersey"}</h4>
+              <p className="text-sm text-offwhite/70">Signed by {product.signedBy || "Selected Player"}</p>
+              <p className="text-gold-warm font-display font-bold mt-2">${formatPrice(product.price || 0)}</p>
             </CardContent>
           </Card>
         ))}
@@ -576,38 +616,7 @@ export default function ShopPage() {
               {/* Jersey Selection */}
               <div>
                 <h3 className="text-xl font-display font-bold text-gold mb-4">Select a Jersey</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {jerseyOptions.map((jersey) => (
-                    <Card
-                      key={jersey.id}
-                      className={`cursor-pointer transition-all overflow-hidden ${
-                        selectedJersey && selectedJersey.id === jersey.id
-                          ? "border-gold bg-gold/10"
-                          : "border-gold/30 bg-charcoal hover:border-gold/50"
-                      }`}
-                      onClick={() => setSelectedJersey(jersey)}
-                    >
-                      <div className="relative h-48">
-                        <Image
-                          src={jersey.image || "/placeholder.svg"}
-                          alt={jersey.title}
-                          fill
-                          className="object-contain"
-                        />
-                        {selectedJersey && selectedJersey.id === jersey.id && (
-                          <div className="absolute top-2 right-2 bg-gold rounded-full p-1">
-                            <Checkbox checked={true} className="h-4 w-4 text-black" />
-                          </div>
-                        )}
-                      </div>
-                      <CardContent className="p-4">
-                        <h4 className="font-display font-bold text-offwhite">{jersey.title}</h4>
-                        <p className="text-sm text-offwhite/70">Signed by {jersey.player}</p>
-                        <p className="text-gold-warm font-display font-bold mt-2">${jersey.price.toFixed(2)}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                {renderJerseySelection()}
               </div>
 
               {/* Personalization Form */}
@@ -698,15 +707,15 @@ export default function ShopPage() {
                       <div className="space-y-2 mb-6">
                         <div className="flex justify-between">
                           <span className="text-offwhite/70">Jersey:</span>
-                          <span className="text-offwhite">{selectedJersey.title}</span>
+                          <span className="text-offwhite">{selectedJersey.title || "Custom Jersey"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-offwhite/70">Player Signature:</span>
-                          <span className="text-offwhite">{selectedJersey.player}</span>
+                          <span className="text-offwhite">{selectedJersey.signedBy || "Selected Player"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-offwhite/70">Base Price:</span>
-                          <span className="text-offwhite">${selectedJersey.price.toFixed(2)}</span>
+                          <span className="text-offwhite">${formatPrice(selectedJersey.price || 0)}</span>
                         </div>
                         {form.watch("vipFrame") && (
                           <div className="flex justify-between">
@@ -716,7 +725,7 @@ export default function ShopPage() {
                         )}
                         <div className="border-t border-gold/20 pt-2 mt-2 flex justify-between font-bold">
                           <span className="text-gold">Total:</span>
-                          <span className="text-gold">${calculatePrice().toFixed(2)}</span>
+                          <span className="text-gold">${formatPrice(calculatePrice())}</span>
                         </div>
                       </div>
                     )}
@@ -731,7 +740,7 @@ export default function ShopPage() {
                     <Button
                       type="submit"
                       className="w-full bg-gold-soft hover:bg-gold-deep text-jetblack"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !selectedJersey}
                     >
                       {isSubmitting ? (
                         <>
@@ -747,14 +756,6 @@ export default function ShopPage() {
               </Form>
             </div>
           </div>
-
-          {/* Pre-Order Products Grid */}
-          {sortedPreOrderProducts.length > 0 && (
-            <div className="mt-12">
-              <h3 className="text-2xl font-display font-bold mb-6 text-gold">Featured Pre-Order Products</h3>
-              {renderProductGrid(sortedPreOrderProducts)}
-            </div>
-          )}
         </TabsContent>
       </Tabs>
     </div>
